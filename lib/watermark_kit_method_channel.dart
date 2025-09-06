@@ -129,66 +129,62 @@ class MethodChannelWatermarkKit extends WatermarkKitPlatform {
     int fontWeight = 600,
     int colorArgb = 0xFFFFFFFF,
   }) async {
-    // Try Pigeon path if available (guarded to avoid hard dependency until codegen updated)
+    // Primary path: Pigeon-generated API
+    final api = pigeon.WatermarkApi();
+    final req = pigeon.ComposeTextRequest(
+      baseImage: inputImage,
+      text: text,
+      anchor: _anchorFromString(anchor),
+      margin: margin,
+      marginUnit: _unitFromString(marginUnit),
+      offsetX: offsetX,
+      offsetY: offsetY,
+      offsetUnit: _unitFromString(offsetUnit),
+      widthPercent: widthPercent,
+      textStyle: pigeon.TextStyleDto(
+        fontFamily: fontFamily,
+        fontSizePt: fontSizePt,
+        fontWeight: fontWeight,
+        colorArgb: colorArgb,
+      ),
+      style: pigeon.WmStyleDto(
+        opacity: opacity,
+        stroke: false,
+        strokeWidth: 1.0,
+        shadowBlur: 0.0,
+      ),
+      format: _formatFromString(format),
+      quality: quality,
+    );
     try {
-      // Dynamically check if composeText is wired by probing a dedicated BasicMessageChannel.
-      // If not available, fall back to MethodChannel below.
-      final basicChannel = const BasicMessageChannel<Object?>(
-        'dev.flutter.pigeon.watermark_kit.WatermarkApi.composeText',
-        pigeon.WatermarkApi.pigeonChannelCodec,
-      );
-      final req = [
-        inputImage,
-        text,
-        // Anchor (default bottomRight)
-        pigeon.Anchor.values.indexOf(_anchorFromString(anchor)),
-        margin,
-        pigeon.Unit.values.indexOf(_unitFromString(marginUnit)),
-        offsetX,
-        offsetY,
-        pigeon.Unit.values.indexOf(_unitFromString(offsetUnit)),
-        widthPercent,
-        // TextStyleDto
-        [fontFamily, fontSizePt, fontWeight, colorArgb],
-        // WmStyleDto (only opacity used in MVP path; others kept for forward compat)
-        [opacity, false, 1.0, 0.0],
-        pigeon.OutputFormat.values.indexOf(_formatFromString(format)),
-        quality,
-      ];
-      final reply = await basicChannel.send(req) as List<Object?>?;
-      if (reply != null && reply.isNotEmpty && reply[0] != null) {
-        final res = reply[0] as List<Object?>;
-        final bytes = res[0] as Uint8List;
-        return bytes;
+      final res = await api.composeText(req);
+      return res.imageBytes;
+    } on PlatformException catch (_) {
+      // Fallback to legacy MethodChannel if Pigeon channel isn't set up.
+      final args = <String, dynamic>{
+        'inputImage': inputImage,
+        'text': text,
+        'anchor': anchor,
+        'margin': margin,
+        'marginUnit': marginUnit,
+        'offsetX': offsetX,
+        'offsetY': offsetY,
+        'offsetUnit': offsetUnit,
+        'widthPercent': widthPercent,
+        'opacity': opacity,
+        'format': format,
+        'quality': quality,
+        'fontFamily': fontFamily,
+        'fontSizePt': fontSizePt,
+        'fontWeight': fontWeight,
+        'colorArgb': colorArgb,
+      };
+      final bytes = await methodChannel.invokeMethod<Uint8List>('composeText', args);
+      if (bytes == null) {
+        throw PlatformException(code: 'compose_text_failed', message: 'No bytes returned');
       }
-      // else fall through to MethodChannel
-    } catch (_) {
-      // Ignore and use MethodChannel fallback
+      return bytes;
     }
-
-    final args = <String, dynamic>{
-      'inputImage': inputImage,
-      'text': text,
-      'anchor': anchor,
-      'margin': margin,
-      'marginUnit': marginUnit,
-      'offsetX': offsetX,
-      'offsetY': offsetY,
-      'offsetUnit': offsetUnit,
-      'widthPercent': widthPercent,
-      'opacity': opacity,
-      'format': format,
-      'quality': quality,
-      'fontFamily': fontFamily,
-      'fontSizePt': fontSizePt,
-      'fontWeight': fontWeight,
-      'colorArgb': colorArgb,
-    };
-    final bytes = await methodChannel.invokeMethod<Uint8List>('composeText', args);
-    if (bytes == null) {
-      throw PlatformException(code: 'compose_text_failed', message: 'No bytes returned');
-    }
-    return bytes;
   }
 
   // Helpers shared between methods
