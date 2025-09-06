@@ -21,6 +21,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
   String _platformVersion = 'Unknown';
   final _watermarkKitPlugin = WatermarkKit();
   final _picker = ImagePicker();
@@ -74,90 +75,29 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Watermark Kit Example'),
-        ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Running on: $_platformVersion'),
-                const SizedBox(height: 12),
-                _rowSelectImages(),
-                const SizedBox(height: 12),
-                _controls(),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  onPressed: (_baseImage != null && _watermarkImage != null && !_isComposing)
-                      ? _compose
-                      : null,
-                  icon: const Icon(Icons.play_arrow),
-                  label: Text(_isComposing ? 'Composing...' : 'Compose'),
-                ),
-                const SizedBox(height: 8),
-                _textControls(),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: (_baseImage != null && !_isComposing)
-                      ? _composeText
-                      : null,
-                  icon: const Icon(Icons.text_fields),
-                  label: Text(_isComposing ? 'Composing...' : 'Compose Text'),
-                ),
-                const SizedBox(height: 12),
-                _previewResult(),
-                const SizedBox(height: 24),
-                const Divider(),
-                const Text('Quick Demo (optional)'),
-                Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: _loadSampleBase,
-                      child: const Text('Use Sample Base'),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: _loadSampleWatermark,
-                      child: const Text('Use Sample Watermark'),
-                    ),
-                  ],
-                )
-                ,
-                const SizedBox(height: 24),
-                const Divider(),
-                const Text('Video (iOS only)'),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: _pickVideo,
-                      child: const Text('Pick Video'),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: (_videoPath != null && _videoTask == null) ? _startVideo : null,
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Compose Video'),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: (_videoTask != null) ? _cancelVideo : null,
-                      icon: const Icon(Icons.stop),
-                      label: const Text('Cancel'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(value: (_videoTask != null) ? _videoProgress : null),
-              ],
-            ),
+      debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: _messengerKey,
+      home: DefaultTabController(
+        length: 2,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Watermark Kit Example'),
+            bottom: const TabBar(tabs: [
+              Tab(text: 'Image'),
+              Tab(text: 'Video'),
+            ]),
           ),
+          body: const TabBarView(children: [
+            _ImageTab(),
+            _VideoTab(),
+          ]),
         ),
       ),
     );
+  }
+
+  void _showSnack(String message) {
+    _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _rowSelectImages() {
@@ -312,7 +252,7 @@ class _MyAppState extends State<MyApp> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Pick failed: $e')));
+      _showSnack('Pick failed: $e');
     }
   }
 
@@ -342,7 +282,7 @@ class _MyAppState extends State<MyApp> {
       print('Wrote: ${out.path}');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Compose failed: $e')));
+      _showSnack('Compose failed: $e');
     } finally {
       if (mounted) setState(() => _isComposing = false);
     }
@@ -374,7 +314,7 @@ class _MyAppState extends State<MyApp> {
       print('Wrote: ${out.path}');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Compose text failed: $e')));
+      _showSnack('Compose text failed: $e');
     } finally {
       if (mounted) setState(() => _isComposing = false);
     }
@@ -387,7 +327,7 @@ class _MyAppState extends State<MyApp> {
       setState(() => _videoPath = xfile.path);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Pick video failed: $e')));
+      _showSnack('Pick video failed: $e');
     }
   }
 
@@ -416,10 +356,10 @@ class _MyAppState extends State<MyApp> {
       });
       final res = await task.done;
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Video done: ${res.path}')));
+      _showSnack('Video done: ${res.path}');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Video failed: $e')));
+      _showSnack('Video failed: $e');
     } finally {
       if (mounted) setState(() => _videoTask = null);
     }
@@ -485,5 +425,116 @@ class _MyAppState extends State<MyApp> {
   Future<void> _loadSampleWatermark() async {
     final wmPng = await _generateSampleWatermarkPng(300, 140);
     setState(() => _watermarkImage = wmPng);
+  }
+}
+
+class _ImageTab extends StatefulWidget {
+  const _ImageTab();
+  @override
+  State<_ImageTab> createState() => _ImageTabState();
+}
+
+class _ImageTabState extends State<_ImageTab> {
+  @override
+  Widget build(BuildContext context) {
+    final parent = context.findAncestorStateOfType<_MyAppState>()!;
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Running on: ${parent._platformVersion}'),
+            const SizedBox(height: 12),
+            parent._rowSelectImages(),
+            const SizedBox(height: 12),
+            parent._controls(),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: (parent._baseImage != null && parent._watermarkImage != null && !parent._isComposing)
+                  ? parent._compose
+                  : null,
+              icon: const Icon(Icons.play_arrow),
+              label: Text(parent._isComposing ? 'Composing...' : 'Compose'),
+            ),
+            const SizedBox(height: 8),
+            parent._textControls(),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: (parent._baseImage != null && !parent._isComposing)
+                  ? parent._composeText
+                  : null,
+              icon: const Icon(Icons.text_fields),
+              label: Text(parent._isComposing ? 'Composing...' : 'Compose Text'),
+            ),
+            const SizedBox(height: 12),
+            parent._previewResult(),
+            const SizedBox(height: 24),
+            const Divider(),
+            const Text('Quick Demo (optional)'),
+            Row(
+              children: [
+                ElevatedButton(
+                  onPressed: parent._loadSampleBase,
+                  child: const Text('Use Sample Base'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: parent._loadSampleWatermark,
+                  child: const Text('Use Sample Watermark'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoTab extends StatefulWidget {
+  const _VideoTab();
+  @override
+  State<_VideoTab> createState() => _VideoTabState();
+}
+
+class _VideoTabState extends State<_VideoTab> {
+  @override
+  Widget build(BuildContext context) {
+    final parent = context.findAncestorStateOfType<_MyAppState>()!;
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Video (iOS only)'),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ElevatedButton(
+                  onPressed: parent._pickVideo,
+                  child: const Text('Pick Video'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: (parent._videoPath != null && parent._videoTask == null) ? parent._startVideo : null,
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Compose Video'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: (parent._videoTask != null) ? parent._cancelVideo : null,
+                  icon: const Icon(Icons.stop),
+                  label: const Text('Cancel'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(value: (parent._videoTask != null) ? parent._videoProgress : null),
+          ],
+        ),
+      ),
+    );
   }
 }
