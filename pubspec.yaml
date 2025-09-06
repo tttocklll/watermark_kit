@@ -1,7 +1,9 @@
 name: watermark_kit
-description: "iOS image watermarking plugin for Flutter. Composes a watermark image over a base image in memory and returns encoded PNG/JPEG bytes (Core Image + Metal, no FFmpeg)."
-version: 0.0.2
+description: "High-performance iOS watermarking plugin for Flutter. Compose text or image watermarks over images and videos using Core Image + Metal (no FFmpeg)."
+version: 1.0.0
 homepage: https://github.com/tttocklll/watermark_kit
+repository: https://github.com/tttocklll/watermark_kit
+issue_tracker: https://github.com/tttocklll/watermark_kit/issues
 
 environment:
   sdk: ^3.8.0
@@ -17,6 +19,13 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   pigeon: ^26.0.1
+
+topics:
+  - flutter-plugin
+  - watermark
+  - image
+  - video
+  - ios
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

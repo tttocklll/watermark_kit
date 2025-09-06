@@ -4,18 +4,18 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'watermark_kit'
-  s.version          = '0.0.1'
-  s.summary          = 'A new Flutter plugin project.'
+  s.version          = '1.0.0'
+  s.summary          = 'High-performance iOS watermarking for Flutter.'
   s.description      = <<-DESC
-A new Flutter plugin project.
-                       DESC
-  s.homepage         = 'http://example.com'
+Compose text or image watermarks over images and videos using Core Image with a Metal-backed CIContext. No FFmpeg dependency.
+  DESC
+  s.homepage         = 'https://github.com/tttocklll/watermark_kit'
   s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Your Company' => 'email@example.com' }
+  s.author           = { 'tttocklll' => 'https://github.com/tttocklll' }
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'
-  s.platform = :ios, '12.0'
+  s.platform = :ios, '15.0'
 
   # Flutter.framework does not contain a i386 slice.
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }

@@ -1,3 +1,19 @@
+## 1.0.0
+
+Added
+- iOS video watermarking with progress/cancel (Core Image + AVFoundation Reader/Writer)
+  - Pigeon APIs: `composeVideo`, `cancel`, and `WatermarkCallbacks` (progress/completed/error)
+  - Dart: `VideoTask` exposes `progress` Stream and `done` Future
+  - Example: dedicated Video tab with text/image watermark selection and output preview player
+
+Changed
+- Package description updated to reflect image + video support
+- iOS Podspec metadata (summary/homepage/author) updated; minimum iOS set to 15.0
+
+Notes
+- Default codec is H.264; `codec: 'hevc'` can be used where supported
+- Audio is passed through on a best‑effort basis
+
 ## 0.0.2
 
 Added
@@ -9,18 +25,6 @@ Added
 
 Changed/Chore
 - README updated with text watermark usage and API reference.
-
-## Unreleased
-
-Added
-- Experimental iOS video watermark pipeline (Reader/Writer + Core Image):
-  - Pigeon: `composeVideo`, `cancel` and `WatermarkCallbacks` (progress/completed/error).
-  - Dart: `VideoTask` with `progress` Stream and `done` Future.
-  - Example: simple video pick + compose UI and progress bar.
-
-Notes
-- Default codec H.264; `codec: 'hevc'` opt-in where supported.
-- Audio is passed through on a best‑effort basis in this MVP.
 
 ## 0.0.1
 

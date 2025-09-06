@@ -13,7 +13,7 @@ In your app's `pubspec.yaml`:
 
 ```
 dependencies:
-  watermark_kit: ^0.0.x
+  watermark_kit: ^1.0.0
 ```
 
 Import and create the API:
@@ -28,7 +28,7 @@ final wm = WatermarkKit();
 
 Image watermark (PNG/JPEG bytes → bytes):
 
-```
+```dart
 final bytes = await wm.composeImage(
   inputImage: baseBytes,        // Uint8List (PNG/JPEG/HEIF usually supported by iOS)
   watermarkImage: wmBytes,      // Uint8List with alpha support (e.g., PNG)
@@ -47,7 +47,7 @@ final bytes = await wm.composeImage(
 
 Write to a file if you want:
 
-```
+```dart
 final file = File('/tmp/composed.png');
 await file.writeAsBytes(bytes);
 ```
@@ -56,7 +56,7 @@ See the runnable `example/` app for a simple UI and usage.
 
 Text watermark (text → bytes):
 
-```
+```dart
 final textBytes = await wm.composeTextImage(
   inputImage: baseBytes,
   text: '© watermark kit',
@@ -72,21 +72,65 @@ final textBytes = await wm.composeTextImage(
 );
 ```
 
-### Video (iOS only, experimental)
+### Video
 
-```
+Add a text or image watermark to every frame of a video and export an MP4 file. The call returns a `VideoTask` with a `progress` stream and a `done` future.
+
+Text watermark example:
+```dart
 final task = await wm.composeVideo(
   inputVideoPath: '/path/in.mp4',
-  text: '© watermark',
-  anchor: 'bottomRight',
+  text: '© watermark_kit',        // use `text` OR `watermarkImage`
+  anchor: 'bottomRight',           // 'topLeft'|'topRight'|'bottomLeft'|'bottomRight'|'center'
+  margin: 16.0,                    // px (use 'percent' in marginUnit for relative)
+  marginUnit: 'px',                // 'px' | 'percent'
+  widthPercent: 0.18,              // watermark width = 18% of video display width
+  opacity: 0.6,                    // 0..1
+  codec: 'h264',                   // or 'hevc' when supported
 );
-task.progress.listen((p) => print('progress: $p'));
+task.progress.listen((p) => print('progress: ${(p * 100).toStringAsFixed(0)}%'));
 final res = await task.done;
 print('Output: ${res.path} (${res.width}x${res.height})');
 ```
+
+Image watermark example:
+```dart
+final wmBytes = await File('/path/wm.png').readAsBytes();
+final task = await wm.composeVideo(
+  inputVideoPath: '/path/in.mp4',
+  watermarkImage: wmBytes,         // PNG with alpha recommended
+  anchor: 'topLeft',
+  margin: 24.0,
+  widthPercent: 0.15,
+  opacity: 0.8,
+);
+final res = await task.done;
+```
+
+Cancelling:
+```dart
+final task = await wm.composeVideo(inputVideoPath: '/path/in.mp4', text: '© …');
+final sub = task.progress.listen((p) { /* update UI */ });
+// ... some condition
+await task.cancel();
+await sub.cancel();
+```
+
+Options (quick reference):
+- `inputVideoPath` (String, required): input MP4 path (H.264/HEVC).
+- `watermarkImage` (Uint8List?) or `text` (String?): choose either image or text.
+- `anchor` (String): 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center'. Default 'bottomRight'.
+- `margin` (double) + `marginUnit` ('px'|'percent'): distance from edges at the anchor. Default 16.0 px.
+- `offsetX` / `offsetY` (double) + `offsetUnit` ('px'|'percent'): fine adjustments. Default 0.
+- `widthPercent` (double): watermark width relative to video display width. Default 0.18.
+- `opacity` (double): 0..1, multiplies watermark alpha. Default 0.6.
+- `codec` ('h264'|'hevc'): default 'h264'.
+
 Notes:
 - Set `codec: 'hevc'` for HEVC when supported; default is H.264.
-- Audio is passed through on a best‑effort basis in this MVP.
+- Audio is passed through on a best‑effort basis.
+- Rotation is respected via the track `preferredTransform` (anchors apply to the displayed orientation).
+- See the example app’s “Video” tab for a complete, working UI.
 
 ## API Reference
 Method: `Future<Uint8List> composeImage({...})`
