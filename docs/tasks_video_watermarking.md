@@ -1,6 +1,6 @@
-# Watermark Kit – 動画ウォーターマーク実装タスク（iOS MVP）
+# Watermark Kit – 動画ウォーターマーク実装タスク（iOS）
 
-対象: `docs/design/video_watermarking.md`（本仕様）/ `docs/main_spec.md` 準拠。まずは iOS 限定で動画に静的ウォーターマーク（画像/テキスト）を合成する。
+対象: `docs/design/video_watermarking.md`（本仕様）/ `docs/main_spec.md` 準拠。iOS で動画に静的ウォーターマーク（画像/テキスト）を合成する。
 
 ---
 
@@ -93,7 +93,7 @@
     - キャンセル時の後片付け
 - ドキュメント/メタ
   - `README.md` に動画対応の使い方/制約を追記
-  - `CHANGELOG.md` にエントリ追加（iOS Video MVP）
+  - `CHANGELOG.md` にエントリ追加（iOS Video 機能）
   - `docs/main_spec.md` との整合コメント（現状アンカーは `topLeft/.../center` を継続。将来 `HAlign/VAlign` へ統合のメモ）
 - 受け入れ条件
   - CI で Dart テストがグリーン
