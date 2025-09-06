@@ -10,6 +10,10 @@ import 'package:pigeon/pigeon.dart';
     dartOptions: DartOptions(),
     swiftOut: 'ios/Classes/Messages.g.swift',
     swiftOptions: SwiftOptions(),
+    kotlinOut: 'android/src/main/kotlin/com/tttocklll/watermark_kit/Messages.g.kt',
+    kotlinOptions: KotlinOptions(
+      package: 'com.tttocklll.watermark_kit',
+    ),
   ),
 )
 enum Anchor { topLeft, topRight, bottomLeft, bottomRight, center }

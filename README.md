@@ -4,8 +4,8 @@ Lightweight image watermarking plugin for Flutter (iOS only). Composes an image 
 
 ## Platform Support
 
-- iOS (Swift)
-- Android: not implemented (invoking the API on Android will throw `MissingPluginException`).
+- iOS: images, text, and video watermarking
+- Android: images and text supported; video not yet implemented
 
 ## Install
 
