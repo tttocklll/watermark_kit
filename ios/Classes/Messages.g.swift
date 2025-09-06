@@ -55,6 +55,10 @@ private func wrapError(_ error: Any) -> [Any?] {
   ]
 }
 
+private func createConnectionError(withChannelName channelName: String) -> PigeonError {
+  return PigeonError(code: "channel-error", message: "Unable to establish connection on channel: '\(channelName)'.", details: "")
+}
+
 private func isNullish(_ value: Any?) -> Bool {
   return value is NSNull || value == nil
 }
@@ -144,6 +148,11 @@ enum OutputFormat: Int {
 enum Unit: Int {
   case px = 0
   case percent = 1
+}
+
+enum VideoCodec: Int {
+  case h264 = 0
+  case hevc = 1
 }
 
 /// Generated class from Pigeon that represents data sent in messages.
@@ -395,6 +404,140 @@ struct ComposeTextRequest: Hashable {
   }
 }
 
+/// Generated class from Pigeon that represents data sent in messages.
+struct ComposeVideoRequest: Hashable {
+  var taskId: String? = nil
+  var inputVideoPath: String
+  var outputVideoPath: String? = nil
+  var watermarkImage: FlutterStandardTypedData? = nil
+  var text: String? = nil
+  var anchor: Anchor
+  var margin: Double
+  var marginUnit: Unit
+  var offsetX: Double
+  var offsetY: Double
+  var offsetUnit: Unit
+  var widthPercent: Double
+  var opacity: Double
+  var codec: VideoCodec
+  var bitrateBps: Int64? = nil
+  var maxFps: Double? = nil
+  var maxLongSide: Int64? = nil
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> ComposeVideoRequest? {
+    let taskId: String? = nilOrValue(pigeonVar_list[0])
+    let inputVideoPath = pigeonVar_list[1] as! String
+    let outputVideoPath: String? = nilOrValue(pigeonVar_list[2])
+    let watermarkImage: FlutterStandardTypedData? = nilOrValue(pigeonVar_list[3])
+    let text: String? = nilOrValue(pigeonVar_list[4])
+    let anchor = pigeonVar_list[5] as! Anchor
+    let margin = pigeonVar_list[6] as! Double
+    let marginUnit = pigeonVar_list[7] as! Unit
+    let offsetX = pigeonVar_list[8] as! Double
+    let offsetY = pigeonVar_list[9] as! Double
+    let offsetUnit = pigeonVar_list[10] as! Unit
+    let widthPercent = pigeonVar_list[11] as! Double
+    let opacity = pigeonVar_list[12] as! Double
+    let codec = pigeonVar_list[13] as! VideoCodec
+    let bitrateBps: Int64? = nilOrValue(pigeonVar_list[14])
+    let maxFps: Double? = nilOrValue(pigeonVar_list[15])
+    let maxLongSide: Int64? = nilOrValue(pigeonVar_list[16])
+
+    return ComposeVideoRequest(
+      taskId: taskId,
+      inputVideoPath: inputVideoPath,
+      outputVideoPath: outputVideoPath,
+      watermarkImage: watermarkImage,
+      text: text,
+      anchor: anchor,
+      margin: margin,
+      marginUnit: marginUnit,
+      offsetX: offsetX,
+      offsetY: offsetY,
+      offsetUnit: offsetUnit,
+      widthPercent: widthPercent,
+      opacity: opacity,
+      codec: codec,
+      bitrateBps: bitrateBps,
+      maxFps: maxFps,
+      maxLongSide: maxLongSide
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      taskId,
+      inputVideoPath,
+      outputVideoPath,
+      watermarkImage,
+      text,
+      anchor,
+      margin,
+      marginUnit,
+      offsetX,
+      offsetY,
+      offsetUnit,
+      widthPercent,
+      opacity,
+      codec,
+      bitrateBps,
+      maxFps,
+      maxLongSide,
+    ]
+  }
+  static func == (lhs: ComposeVideoRequest, rhs: ComposeVideoRequest) -> Bool {
+    return deepEqualsMessages(lhs.toList(), rhs.toList())  }
+  func hash(into hasher: inout Hasher) {
+    deepHashMessages(value: toList(), hasher: &hasher)
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct ComposeVideoResult: Hashable {
+  var taskId: String
+  var outputVideoPath: String
+  var width: Int64
+  var height: Int64
+  var durationMs: Int64
+  var codec: VideoCodec
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> ComposeVideoResult? {
+    let taskId = pigeonVar_list[0] as! String
+    let outputVideoPath = pigeonVar_list[1] as! String
+    let width = pigeonVar_list[2] as! Int64
+    let height = pigeonVar_list[3] as! Int64
+    let durationMs = pigeonVar_list[4] as! Int64
+    let codec = pigeonVar_list[5] as! VideoCodec
+
+    return ComposeVideoResult(
+      taskId: taskId,
+      outputVideoPath: outputVideoPath,
+      width: width,
+      height: height,
+      durationMs: durationMs,
+      codec: codec
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      taskId,
+      outputVideoPath,
+      width,
+      height,
+      durationMs,
+      codec,
+    ]
+  }
+  static func == (lhs: ComposeVideoResult, rhs: ComposeVideoResult) -> Bool {
+    return deepEqualsMessages(lhs.toList(), rhs.toList())  }
+  func hash(into hasher: inout Hasher) {
+    deepHashMessages(value: toList(), hasher: &hasher)
+  }
+}
+
 private class MessagesPigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
@@ -417,15 +560,25 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
       }
       return nil
     case 132:
-      return ComposeImageRequest.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return VideoCodec(rawValue: enumResultAsInt)
+      }
+      return nil
     case 133:
-      return ComposeImageResult.fromList(self.readValue() as! [Any?])
+      return ComposeImageRequest.fromList(self.readValue() as! [Any?])
     case 134:
-      return TextStyleDto.fromList(self.readValue() as! [Any?])
+      return ComposeImageResult.fromList(self.readValue() as! [Any?])
     case 135:
-      return WmStyleDto.fromList(self.readValue() as! [Any?])
+      return TextStyleDto.fromList(self.readValue() as! [Any?])
     case 136:
+      return WmStyleDto.fromList(self.readValue() as! [Any?])
+    case 137:
       return ComposeTextRequest.fromList(self.readValue() as! [Any?])
+    case 138:
+      return ComposeVideoRequest.fromList(self.readValue() as! [Any?])
+    case 139:
+      return ComposeVideoResult.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -443,20 +596,29 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? Unit {
       super.writeByte(131)
       super.writeValue(value.rawValue)
-    } else if let value = value as? ComposeImageRequest {
+    } else if let value = value as? VideoCodec {
       super.writeByte(132)
-      super.writeValue(value.toList())
-    } else if let value = value as? ComposeImageResult {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? ComposeImageRequest {
       super.writeByte(133)
       super.writeValue(value.toList())
-    } else if let value = value as? TextStyleDto {
+    } else if let value = value as? ComposeImageResult {
       super.writeByte(134)
       super.writeValue(value.toList())
-    } else if let value = value as? WmStyleDto {
+    } else if let value = value as? TextStyleDto {
       super.writeByte(135)
       super.writeValue(value.toList())
-    } else if let value = value as? ComposeTextRequest {
+    } else if let value = value as? WmStyleDto {
       super.writeByte(136)
+      super.writeValue(value.toList())
+    } else if let value = value as? ComposeTextRequest {
+      super.writeByte(137)
+      super.writeValue(value.toList())
+    } else if let value = value as? ComposeVideoRequest {
+      super.writeByte(138)
+      super.writeValue(value.toList())
+    } else if let value = value as? ComposeVideoResult {
+      super.writeByte(139)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -483,6 +645,8 @@ class MessagesPigeonCodec: FlutterStandardMessageCodec, @unchecked Sendable {
 protocol WatermarkApi {
   func composeImage(request: ComposeImageRequest, completion: @escaping (Result<ComposeImageResult, Error>) -> Void)
   func composeText(request: ComposeTextRequest, completion: @escaping (Result<ComposeImageResult, Error>) -> Void)
+  func composeVideo(request: ComposeVideoRequest, completion: @escaping (Result<ComposeVideoResult, Error>) -> Void)
+  func cancel(taskId: String) throws
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -524,6 +688,109 @@ class WatermarkApiSetup {
       }
     } else {
       composeTextChannel.setMessageHandler(nil)
+    }
+    let composeVideoChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.watermark_kit.WatermarkApi.composeVideo\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      composeVideoChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let requestArg = args[0] as! ComposeVideoRequest
+        api.composeVideo(request: requestArg) { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      composeVideoChannel.setMessageHandler(nil)
+    }
+    let cancelChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.watermark_kit.WatermarkApi.cancel\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      cancelChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let taskIdArg = args[0] as! String
+        do {
+          try api.cancel(taskId: taskIdArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      cancelChannel.setMessageHandler(nil)
+    }
+  }
+}
+/// Generated protocol from Pigeon that represents Flutter messages that can be called from Swift.
+protocol WatermarkCallbacksProtocol {
+  func onVideoProgress(taskId taskIdArg: String, progress progressArg: Double, etaSec etaSecArg: Double, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onVideoCompleted(result resultArg: ComposeVideoResult, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onVideoError(taskId taskIdArg: String, code codeArg: String, message messageArg: String, completion: @escaping (Result<Void, PigeonError>) -> Void)
+}
+class WatermarkCallbacks: WatermarkCallbacksProtocol {
+  private let binaryMessenger: FlutterBinaryMessenger
+  private let messageChannelSuffix: String
+  init(binaryMessenger: FlutterBinaryMessenger, messageChannelSuffix: String = "") {
+    self.binaryMessenger = binaryMessenger
+    self.messageChannelSuffix = messageChannelSuffix.count > 0 ? ".\(messageChannelSuffix)" : ""
+  }
+  var codec: MessagesPigeonCodec {
+    return MessagesPigeonCodec.shared
+  }
+  func onVideoProgress(taskId taskIdArg: String, progress progressArg: Double, etaSec etaSecArg: Double, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoProgress\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([taskIdArg, progressArg, etaSecArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onVideoCompleted(result resultArg: ComposeVideoResult, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoCompleted\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([resultArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onVideoError(taskId taskIdArg: String, code codeArg: String, message messageArg: String, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoError\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([taskIdArg, codeArg, messageArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
     }
   }
 }

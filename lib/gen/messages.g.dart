@@ -14,6 +14,16 @@ PlatformException _createConnectionError(String channelName) {
     message: 'Unable to establish connection on channel: "$channelName".',
   );
 }
+
+List<Object?> wrapResponse({Object? result, PlatformException? error, bool empty = false}) {
+  if (empty) {
+    return <Object?>[];
+  }
+  if (error == null) {
+    return <Object?>[result];
+  }
+  return <Object?>[error.code, error.message, error.details];
+}
 bool _deepEquals(Object? a, Object? b) {
   if (a is List && b is List) {
     return a.length == b.length &&
@@ -45,6 +55,11 @@ enum OutputFormat {
 enum Unit {
   px,
   percent,
+}
+
+enum VideoCodec {
+  h264,
+  hevc,
 }
 
 class ComposeImageRequest {
@@ -407,6 +422,193 @@ class ComposeTextRequest {
 ;
 }
 
+class ComposeVideoRequest {
+  ComposeVideoRequest({
+    this.taskId,
+    required this.inputVideoPath,
+    this.outputVideoPath,
+    this.watermarkImage,
+    this.text,
+    this.anchor = Anchor.bottomRight,
+    this.margin = 16.0,
+    this.marginUnit = Unit.px,
+    this.offsetX = 0.0,
+    this.offsetY = 0.0,
+    this.offsetUnit = Unit.px,
+    this.widthPercent = 0.18,
+    this.opacity = 0.6,
+    this.codec = VideoCodec.h264,
+    this.bitrateBps,
+    this.maxFps,
+    this.maxLongSide,
+  });
+
+  String? taskId;
+
+  String inputVideoPath;
+
+  String? outputVideoPath;
+
+  Uint8List? watermarkImage;
+
+  String? text;
+
+  Anchor anchor;
+
+  double margin;
+
+  Unit marginUnit;
+
+  double offsetX;
+
+  double offsetY;
+
+  Unit offsetUnit;
+
+  double widthPercent;
+
+  double opacity;
+
+  VideoCodec codec;
+
+  int? bitrateBps;
+
+  double? maxFps;
+
+  int? maxLongSide;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      taskId,
+      inputVideoPath,
+      outputVideoPath,
+      watermarkImage,
+      text,
+      anchor,
+      margin,
+      marginUnit,
+      offsetX,
+      offsetY,
+      offsetUnit,
+      widthPercent,
+      opacity,
+      codec,
+      bitrateBps,
+      maxFps,
+      maxLongSide,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static ComposeVideoRequest decode(Object result) {
+    result as List<Object?>;
+    return ComposeVideoRequest(
+      taskId: result[0] as String?,
+      inputVideoPath: result[1]! as String,
+      outputVideoPath: result[2] as String?,
+      watermarkImage: result[3] as Uint8List?,
+      text: result[4] as String?,
+      anchor: result[5]! as Anchor,
+      margin: result[6]! as double,
+      marginUnit: result[7]! as Unit,
+      offsetX: result[8]! as double,
+      offsetY: result[9]! as double,
+      offsetUnit: result[10]! as Unit,
+      widthPercent: result[11]! as double,
+      opacity: result[12]! as double,
+      codec: result[13]! as VideoCodec,
+      bitrateBps: result[14] as int?,
+      maxFps: result[15] as double?,
+      maxLongSide: result[16] as int?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! ComposeVideoRequest || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(encode(), other.encode());
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => Object.hashAll(_toList())
+;
+}
+
+class ComposeVideoResult {
+  ComposeVideoResult({
+    required this.taskId,
+    required this.outputVideoPath,
+    required this.width,
+    required this.height,
+    required this.durationMs,
+    required this.codec,
+  });
+
+  String taskId;
+
+  String outputVideoPath;
+
+  int width;
+
+  int height;
+
+  int durationMs;
+
+  VideoCodec codec;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      taskId,
+      outputVideoPath,
+      width,
+      height,
+      durationMs,
+      codec,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static ComposeVideoResult decode(Object result) {
+    result as List<Object?>;
+    return ComposeVideoResult(
+      taskId: result[0]! as String,
+      outputVideoPath: result[1]! as String,
+      width: result[2]! as int,
+      height: result[3]! as int,
+      durationMs: result[4]! as int,
+      codec: result[5]! as VideoCodec,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! ComposeVideoResult || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(encode(), other.encode());
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => Object.hashAll(_toList())
+;
+}
+
 
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
@@ -424,20 +626,29 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is Unit) {
       buffer.putUint8(131);
       writeValue(buffer, value.index);
-    }    else if (value is ComposeImageRequest) {
+    }    else if (value is VideoCodec) {
       buffer.putUint8(132);
-      writeValue(buffer, value.encode());
-    }    else if (value is ComposeImageResult) {
+      writeValue(buffer, value.index);
+    }    else if (value is ComposeImageRequest) {
       buffer.putUint8(133);
       writeValue(buffer, value.encode());
-    }    else if (value is TextStyleDto) {
+    }    else if (value is ComposeImageResult) {
       buffer.putUint8(134);
       writeValue(buffer, value.encode());
-    }    else if (value is WmStyleDto) {
+    }    else if (value is TextStyleDto) {
       buffer.putUint8(135);
       writeValue(buffer, value.encode());
-    }    else if (value is ComposeTextRequest) {
+    }    else if (value is WmStyleDto) {
       buffer.putUint8(136);
+      writeValue(buffer, value.encode());
+    }    else if (value is ComposeTextRequest) {
+      buffer.putUint8(137);
+      writeValue(buffer, value.encode());
+    }    else if (value is ComposeVideoRequest) {
+      buffer.putUint8(138);
+      writeValue(buffer, value.encode());
+    }    else if (value is ComposeVideoResult) {
+      buffer.putUint8(139);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -457,15 +668,22 @@ class _PigeonCodec extends StandardMessageCodec {
         final int? value = readValue(buffer) as int?;
         return value == null ? null : Unit.values[value];
       case 132: 
-        return ComposeImageRequest.decode(readValue(buffer)!);
+        final int? value = readValue(buffer) as int?;
+        return value == null ? null : VideoCodec.values[value];
       case 133: 
-        return ComposeImageResult.decode(readValue(buffer)!);
+        return ComposeImageRequest.decode(readValue(buffer)!);
       case 134: 
-        return TextStyleDto.decode(readValue(buffer)!);
+        return ComposeImageResult.decode(readValue(buffer)!);
       case 135: 
-        return WmStyleDto.decode(readValue(buffer)!);
+        return TextStyleDto.decode(readValue(buffer)!);
       case 136: 
+        return WmStyleDto.decode(readValue(buffer)!);
+      case 137: 
         return ComposeTextRequest.decode(readValue(buffer)!);
+      case 138: 
+        return ComposeVideoRequest.decode(readValue(buffer)!);
+      case 139: 
+        return ComposeVideoResult.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -538,6 +756,158 @@ class WatermarkApi {
       );
     } else {
       return (pigeonVar_replyList[0] as ComposeImageResult?)!;
+    }
+  }
+
+  Future<ComposeVideoResult> composeVideo(ComposeVideoRequest request) async {
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.watermark_kit.WatermarkApi.composeVideo$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
+    final List<Object?>? pigeonVar_replyList =
+        await pigeonVar_sendFuture as List<Object?>?;
+    if (pigeonVar_replyList == null) {
+      throw _createConnectionError(pigeonVar_channelName);
+    } else if (pigeonVar_replyList.length > 1) {
+      throw PlatformException(
+        code: pigeonVar_replyList[0]! as String,
+        message: pigeonVar_replyList[1] as String?,
+        details: pigeonVar_replyList[2],
+      );
+    } else if (pigeonVar_replyList[0] == null) {
+      throw PlatformException(
+        code: 'null-error',
+        message: 'Host platform returned null value for non-null return value.',
+      );
+    } else {
+      return (pigeonVar_replyList[0] as ComposeVideoResult?)!;
+    }
+  }
+
+  Future<void> cancel(String taskId) async {
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.watermark_kit.WatermarkApi.cancel$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[taskId]);
+    final List<Object?>? pigeonVar_replyList =
+        await pigeonVar_sendFuture as List<Object?>?;
+    if (pigeonVar_replyList == null) {
+      throw _createConnectionError(pigeonVar_channelName);
+    } else if (pigeonVar_replyList.length > 1) {
+      throw PlatformException(
+        code: pigeonVar_replyList[0]! as String,
+        message: pigeonVar_replyList[1] as String?,
+        details: pigeonVar_replyList[2],
+      );
+    } else {
+      return;
+    }
+  }
+}
+
+abstract class WatermarkCallbacks {
+  static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
+
+  void onVideoProgress(String taskId, double progress, double etaSec);
+
+  void onVideoCompleted(ComposeVideoResult result);
+
+  void onVideoError(String taskId, String code, String message);
+
+  static void setUp(WatermarkCallbacks? api, {BinaryMessenger? binaryMessenger, String messageChannelSuffix = '',}) {
+    messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
+    {
+      final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoProgress$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoProgress was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final String? arg_taskId = (args[0] as String?);
+          assert(arg_taskId != null,
+              'Argument for dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoProgress was null, expected non-null String.');
+          final double? arg_progress = (args[1] as double?);
+          assert(arg_progress != null,
+              'Argument for dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoProgress was null, expected non-null double.');
+          final double? arg_etaSec = (args[2] as double?);
+          assert(arg_etaSec != null,
+              'Argument for dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoProgress was null, expected non-null double.');
+          try {
+            api.onVideoProgress(arg_taskId!, arg_progress!, arg_etaSec!);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoCompleted$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoCompleted was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final ComposeVideoResult? arg_result = (args[0] as ComposeVideoResult?);
+          assert(arg_result != null,
+              'Argument for dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoCompleted was null, expected non-null ComposeVideoResult.');
+          try {
+            api.onVideoCompleted(arg_result!);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoError$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          assert(message != null,
+          'Argument for dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoError was null.');
+          final List<Object?> args = (message as List<Object?>?)!;
+          final String? arg_taskId = (args[0] as String?);
+          assert(arg_taskId != null,
+              'Argument for dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoError was null, expected non-null String.');
+          final String? arg_code = (args[1] as String?);
+          assert(arg_code != null,
+              'Argument for dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoError was null, expected non-null String.');
+          final String? arg_message = (args[2] as String?);
+          assert(arg_message != null,
+              'Argument for dev.flutter.pigeon.watermark_kit.WatermarkCallbacks.onVideoError was null, expected non-null String.');
+          try {
+            api.onVideoError(arg_taskId!, arg_code!, arg_message!);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
     }
   }
 }
