@@ -210,7 +210,7 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
   }
 
   // MARK: - Text Rendering (single-line)
-  private static func renderTextCGImage(text: String, fontFamily: String, fontSizePt: Double, fontWeight: Int, colorArgb: UInt32) throws -> CGImage? {
+  static func renderTextCGImage(text: String, fontFamily: String, fontSizePt: Double, fontWeight: Int, colorArgb: UInt32) throws -> CGImage? {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty { return nil }
 
@@ -312,7 +312,7 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
     return data as Data
   }
 
-  private static func encodePNG(cgImage: CGImage) -> Data? {
+  static func encodePNG(cgImage: CGImage) -> Data? {
     let data = NSMutableData()
     guard let dest = CGImageDestinationCreateWithData(data, kUTTypePNG, 1, nil) else { return nil }
     CGImageDestinationAddImage(dest, cgImage, nil)
