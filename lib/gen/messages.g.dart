@@ -43,6 +43,15 @@ enum OutputFormat {
 }
 
 class _Cfg {
+  _Cfg();
+
+  Object encode() {
+    return <Object?>[];
+  }
+
+  static _Cfg decode(Object result) {
+    return _Cfg();
+  }
 }
 
 class ComposeImageRequest {

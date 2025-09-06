@@ -35,6 +35,11 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
     return CIContext(options: [CIContextOption.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!])
   }()
 
+  struct ComposeError: Error {
+    let code: String
+    let message: String
+  }
+
   private func composeImage(args: [String: Any], result: @escaping FlutterResult) {
     guard let baseData = (args["inputImage"] as? FlutterStandardTypedData)?.data,
           let wmData = (args["watermarkImage"] as? FlutterStandardTypedData)?.data else {
@@ -59,8 +64,8 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
         quality: quality
       )
       result(FlutterStandardTypedData(bytes: bytes))
-    } catch let err as FlutterError {
-      result(err)
+    } catch let err as ComposeError {
+      result(FlutterError(code: err.code, message: err.message, details: nil))
     } catch {
       result(FlutterError(code: "compose_failed", message: error.localizedDescription, details: nil))
     }
@@ -70,14 +75,14 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
   func performCompose(baseData: Data, wmData: Data, anchor: String, margin: Double, widthPercent: Double, opacity: Double, format: String, quality: Double) throws -> (Data, Int, Int) {
     guard let baseCI = Self.decodeCIImage(from: baseData),
           let wmCIOriginal = Self.decodeCIImage(from: wmData) else {
-      throw FlutterError(code: "decode_failed", message: "Failed to decode input images", details: nil)
+      throw ComposeError(code: "decode_failed", message: "Failed to decode input images")
     }
 
     let baseExtent = baseCI.extent.integral
     let baseW = baseExtent.width
     let baseH = baseExtent.height
     if baseW <= 1 || baseH <= 1 {
-      throw FlutterError(code: "invalid_image", message: "Base image too small", details: nil)
+      throw ComposeError(code: "invalid_image", message: "Base image too small")
     }
 
     // Scale watermark to widthPercent * baseWidth
@@ -88,7 +93,7 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
 
     // Apply opacity using CIColorMatrix on alpha
     let alphaVec = CIVector(x: 0, y: 0, z: 0, w: CGFloat(opacity))
-    let wmWithOpacity = scaled.applyingFilter("CIColorMatrix", parameters: [kCIInputAVectorKey: alphaVec])
+    let wmWithOpacity = scaled.applyingFilter("CIColorMatrix", parameters: ["inputAVector": alphaVec])
 
     // Compute position by anchor
     let wmRect = wmWithOpacity.extent
@@ -97,28 +102,28 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
 
     // Composite
     guard let filter = CIFilter(name: "CISourceOverCompositing") else {
-      throw FlutterError(code: "filter_error", message: "CISourceOverCompositing unavailable", details: nil)
+      throw ComposeError(code: "filter_error", message: "CISourceOverCompositing unavailable")
     }
     filter.setValue(translated, forKey: kCIInputImageKey)
     filter.setValue(baseCI, forKey: kCIInputBackgroundImageKey)
     guard let output = filter.outputImage else {
-      throw FlutterError(code: "compose_failed", message: "Failed to compose image", details: nil)
+      throw ComposeError(code: "compose_failed", message: "Failed to compose image")
     }
 
     // Render to CGImage
     guard let cg = ciContext.createCGImage(output, from: baseExtent) else {
-      throw FlutterError(code: "render_failed", message: "Failed to render image", details: nil)
+      throw ComposeError(code: "render_failed", message: "Failed to render image")
     }
 
     // Encode to requested format
     if format.lowercased() == "png" {
       guard let data = Self.encodePNG(cgImage: cg) else {
-        throw FlutterError(code: "encode_failed", message: "Failed to encode PNG", details: nil)
+        throw ComposeError(code: "encode_failed", message: "Failed to encode PNG")
       }
       return (data, Int(baseW), Int(baseH))
     } else {
       guard let data = Self.encodeJPEG(cgImage: cg, quality: quality) else {
-        throw FlutterError(code: "encode_failed", message: "Failed to encode JPEG", details: nil)
+        throw ComposeError(code: "encode_failed", message: "Failed to encode JPEG")
       }
       return (data, Int(baseW), Int(baseH))
     }
