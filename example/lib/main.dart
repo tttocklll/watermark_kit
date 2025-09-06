@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'package:video_player/video_player.dart';
 import 'package:watermark_kit/watermark_kit.dart';
 
 void main() {
@@ -499,6 +500,32 @@ class _VideoTab extends StatefulWidget {
 }
 
 class _VideoTabState extends State<_VideoTab> {
+  final _wm = WatermarkKit();
+  final _picker = ImagePicker();
+
+  String? _videoPath;
+  Uint8List? _wmImage;
+  String _wmText = '© Watermark Kit';
+  bool _useImageWatermark = false;
+
+  String _anchor = 'bottomRight';
+  double _margin = 16.0;
+  double _widthPercent = 0.18;
+  double _opacity = 0.6;
+  double _offsetX = 0.0;
+  double _offsetY = 0.0;
+
+  double _progress = 0.0;
+  VideoTask? _task;
+
+  VideoPlayerController? _outController;
+
+  @override
+  void dispose() {
+    _outController?.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final parent = context.findAncestorStateOfType<_MyAppState>()!;
@@ -510,31 +537,203 @@ class _VideoTabState extends State<_VideoTab> {
           children: [
             const Text('Video (iOS only)'),
             const SizedBox(height: 8),
+            Row(children: [
+              ElevatedButton(onPressed: _pickVideo, child: const Text('Pick Video')),
+              const SizedBox(width: 8),
+              if (_videoPath != null) Expanded(child: Text(_videoPath!, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            ]),
+            const SizedBox(height: 12),
+            Row(children: [
+              const Text('Watermark:'),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Text'),
+                selected: !_useImageWatermark,
+                onSelected: (v) => setState(() => _useImageWatermark = !v),
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Image'),
+                selected: _useImageWatermark,
+                onSelected: (v) => setState(() => _useImageWatermark = v),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            if (!_useImageWatermark)
+              TextField(
+                decoration: const InputDecoration(labelText: 'Watermark Text'),
+                controller: TextEditingController(text: _wmText),
+                onChanged: (v) => _wmText = v,
+              )
+            else
+              Row(children: [
+                ElevatedButton.icon(
+                  onPressed: _pickWmImage,
+                  icon: const Icon(Icons.image),
+                  label: const Text('Pick Watermark Image'),
+                ),
+                const SizedBox(width: 8),
+                if (_wmImage != null)
+                  SizedBox(width: 64, height: 64, child: Image.memory(_wmImage!, fit: BoxFit.contain)),
+              ]),
+            const SizedBox(height: 12),
             Row(
               children: [
-                ElevatedButton(
-                  onPressed: parent._pickVideo,
-                  child: const Text('Pick Video'),
-                ),
+                const Text('Anchor:'),
                 const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: (parent._videoPath != null && parent._videoTask == null) ? parent._startVideo : null,
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Compose Video'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: (parent._videoTask != null) ? parent._cancelVideo : null,
-                  icon: const Icon(Icons.stop),
-                  label: const Text('Cancel'),
+                DropdownButton<String>(
+                  value: _anchor,
+                  items: const [
+                    DropdownMenuItem(value: 'topLeft', child: Text('topLeft')),
+                    DropdownMenuItem(value: 'topRight', child: Text('topRight')),
+                    DropdownMenuItem(value: 'bottomLeft', child: Text('bottomLeft')),
+                    DropdownMenuItem(value: 'bottomRight', child: Text('bottomRight')),
+                    DropdownMenuItem(value: 'center', child: Text('center')),
+                  ],
+                  onChanged: (v) => setState(() => _anchor = v ?? _anchor),
                 ),
               ],
             ),
+            _slider('Margin', _margin, 0, 64, (v) => setState(() => _margin = v), suffix: 'px'),
+            _slider('Width % of base', _widthPercent, 0.05, 0.8, (v) => setState(() => _widthPercent = v), formatter: (v) => '${(v * 100).toStringAsFixed(0)}%'),
+            _slider('Opacity', _opacity, 0.0, 1.0, (v) => setState(() => _opacity = v), formatter: (v) => v.toStringAsFixed(2)),
+            _slider('Offset X', _offsetX, -200, 200, (v) => setState(() => _offsetX = v), formatter: (v) => v.toStringAsFixed(0), suffix: 'px'),
+            _slider('Offset Y', _offsetY, -200, 200, (v) => setState(() => _offsetY = v), formatter: (v) => v.toStringAsFixed(0), suffix: 'px'),
             const SizedBox(height: 8),
-            LinearProgressIndicator(value: (parent._videoTask != null) ? parent._videoProgress : null),
+            Row(children: [
+              ElevatedButton.icon(
+                onPressed: (_videoPath != null && _task == null && (_useImageWatermark ? _wmImage != null : _wmText.trim().isNotEmpty))
+                    ? _startCompose
+                    : null,
+                icon: const Icon(Icons.play_arrow),
+                label: Text(_task == null ? 'Compose Video' : 'Composing...'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: (_task != null) ? _cancel : null,
+                icon: const Icon(Icons.stop),
+                label: const Text('Cancel'),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(value: (_task != null) ? _progress : null),
+            const SizedBox(height: 12),
+            if (_outController != null) _videoPlayer(_outController!),
           ],
         ),
       ),
     );
+  }
+
+  Widget _videoPlayer(VideoPlayerController c) {
+    return FutureBuilder(
+      future: c.initialize(),
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const SizedBox(height: 180, child: Center(child: CircularProgressIndicator()));
+        }
+        return AspectRatio(
+          aspectRatio: c.value.aspectRatio == 0 ? 16 / 9 : c.value.aspectRatio,
+          child: Stack(children: [
+            VideoPlayer(c),
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: Row(children: [
+                IconButton(
+                  icon: Icon(c.value.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
+                  onPressed: () {
+                    setState(() {
+                      c.value.isPlaying ? c.pause() : c.play();
+                    });
+                  },
+                )
+              ]),
+            )
+          ]),
+        );
+      },
+    );
+  }
+
+  Widget _slider(String label, double value, double min, double max, ValueChanged<double> onChanged, {String Function(double)? formatter, String suffix = ''}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [Text(label), const SizedBox(width: 8), Text(formatter != null ? formatter(value) : '${value.toStringAsFixed(1)}$suffix')]),
+        Slider(value: value, min: min, max: max, onChanged: onChanged),
+      ],
+    );
+  }
+
+  Future<void> _pickVideo() async {
+    try {
+      final x = await _picker.pickVideo(source: ImageSource.gallery);
+      if (x == null) return;
+      setState(() {
+        _videoPath = x.path;
+        _outController?.dispose();
+        _outController = null;
+      });
+    } catch (e) {
+      _snack('Pick video failed: $e');
+    }
+  }
+
+  Future<void> _pickWmImage() async {
+    try {
+      final x = await _picker.pickImage(source: ImageSource.gallery);
+      if (x == null) return;
+      setState(() async {
+        _wmImage = await x.readAsBytes();
+      });
+    } catch (e) {
+      _snack('Pick watermark failed: $e');
+    }
+  }
+
+  Future<void> _startCompose() async {
+    if (_videoPath == null) return;
+    setState(() {
+      _progress = 0.0;
+    });
+    try {
+      final task = await _wm.composeVideo(
+        inputVideoPath: _videoPath!,
+        outputVideoPath: null,
+        watermarkImage: _useImageWatermark ? _wmImage : null,
+        text: _useImageWatermark ? null : _wmText,
+        anchor: _anchor,
+        margin: _margin,
+        marginUnit: 'px',
+        offsetX: _offsetX,
+        offsetY: _offsetY,
+        offsetUnit: 'px',
+        widthPercent: _widthPercent,
+        opacity: _opacity,
+        codec: 'h264',
+      );
+      setState(() => _task = task);
+      task.progress.listen((p) => setState(() => _progress = p));
+      final res = await task.done;
+      _snack('Video done: ${res.path}');
+      final c = VideoPlayerController.file(File(res.path));
+      setState(() => _outController = c);
+    } catch (e) {
+      _snack('Video failed: $e');
+    } finally {
+      if (mounted) setState(() => _task = null);
+    }
+  }
+
+  Future<void> _cancel() async {
+    final t = _task;
+    if (t == null) return;
+    await t.cancel();
+  }
+
+  void _snack(String m) {
+    final parent = context.findAncestorStateOfType<_MyAppState>()!;
+    parent._messengerKey.currentState?.showSnackBar(SnackBar(content: Text(m)));
   }
 }
