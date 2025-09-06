@@ -35,6 +35,8 @@ class _MyAppState extends State<MyApp> {
   double _opacity = 0.6;
   String _format = 'png';
   double _quality = 0.9;
+  double _offsetX = 0.0;
+  double _offsetY = 0.0;
   bool _isComposing = false;
 
   @override
@@ -194,6 +196,8 @@ class _MyAppState extends State<MyApp> {
         _slider('Width % of base', _widthPercent, 0.05, 0.8, (v) => setState(() => _widthPercent = v),
             formatter: (v) => '${(v * 100).toStringAsFixed(0)}%'),
         _slider('Opacity', _opacity, 0.0, 1.0, (v) => setState(() => _opacity = v), formatter: (v) => v.toStringAsFixed(2)),
+        _slider('Offset X', _offsetX, -200, 200, (v) => setState(() => _offsetX = v), formatter: (v) => v.toStringAsFixed(0), suffix: 'px'),
+        _slider('Offset Y', _offsetY, -200, 200, (v) => setState(() => _offsetY = v), formatter: (v) => v.toStringAsFixed(0), suffix: 'px'),
         if (_format == 'jpeg')
           _slider('JPEG Quality', _quality, 0.2, 1.0, (v) => setState(() => _quality = v), formatter: (v) => v.toStringAsFixed(2)),
       ],
@@ -269,6 +273,8 @@ class _MyAppState extends State<MyApp> {
         opacity: _opacity,
         format: _format,
         quality: _quality,
+        offsetX: _offsetX,
+        offsetY: _offsetY,
       );
       setState(() => _resultImage = bytes);
 
