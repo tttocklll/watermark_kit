@@ -269,6 +269,153 @@ struct ComposeImageResult: Hashable {
   }
 }
 
+/// Generated class from Pigeon that represents data sent in messages.
+struct TextStyleDto: Hashable {
+  var fontFamily: String
+  var fontSizePt: Double
+  var fontWeight: Int64
+  var colorArgb: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> TextStyleDto? {
+    let fontFamily = pigeonVar_list[0] as! String
+    let fontSizePt = pigeonVar_list[1] as! Double
+    let fontWeight = pigeonVar_list[2] as! Int64
+    let colorArgb = pigeonVar_list[3] as! Int64
+
+    return TextStyleDto(
+      fontFamily: fontFamily,
+      fontSizePt: fontSizePt,
+      fontWeight: fontWeight,
+      colorArgb: colorArgb
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      fontFamily,
+      fontSizePt,
+      fontWeight,
+      colorArgb,
+    ]
+  }
+  static func == (lhs: TextStyleDto, rhs: TextStyleDto) -> Bool {
+    return deepEqualsMessages(lhs.toList(), rhs.toList())  }
+  func hash(into hasher: inout Hasher) {
+    deepHashMessages(value: toList(), hasher: &hasher)
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct WmStyleDto: Hashable {
+  var opacity: Double
+  var stroke: Bool
+  var strokeWidth: Double
+  var shadowBlur: Double
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> WmStyleDto? {
+    let opacity = pigeonVar_list[0] as! Double
+    let stroke = pigeonVar_list[1] as! Bool
+    let strokeWidth = pigeonVar_list[2] as! Double
+    let shadowBlur = pigeonVar_list[3] as! Double
+
+    return WmStyleDto(
+      opacity: opacity,
+      stroke: stroke,
+      strokeWidth: strokeWidth,
+      shadowBlur: shadowBlur
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      opacity,
+      stroke,
+      strokeWidth,
+      shadowBlur,
+    ]
+  }
+  static func == (lhs: WmStyleDto, rhs: WmStyleDto) -> Bool {
+    return deepEqualsMessages(lhs.toList(), rhs.toList())  }
+  func hash(into hasher: inout Hasher) {
+    deepHashMessages(value: toList(), hasher: &hasher)
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct ComposeTextRequest: Hashable {
+  var baseImage: FlutterStandardTypedData
+  var text: String
+  var anchor: Anchor
+  var margin: Double
+  var marginUnit: Unit
+  var offsetX: Double
+  var offsetY: Double
+  var offsetUnit: Unit
+  var widthPercent: Double
+  var textStyle: TextStyleDto
+  var style: WmStyleDto
+  var format: OutputFormat
+  var quality: Double
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> ComposeTextRequest? {
+    let baseImage = pigeonVar_list[0] as! FlutterStandardTypedData
+    let text = pigeonVar_list[1] as! String
+    let anchor = pigeonVar_list[2] as! Anchor
+    let margin = pigeonVar_list[3] as! Double
+    let marginUnit = pigeonVar_list[4] as! Unit
+    let offsetX = pigeonVar_list[5] as! Double
+    let offsetY = pigeonVar_list[6] as! Double
+    let offsetUnit = pigeonVar_list[7] as! Unit
+    let widthPercent = pigeonVar_list[8] as! Double
+    let textStyle = pigeonVar_list[9] as! TextStyleDto
+    let style = pigeonVar_list[10] as! WmStyleDto
+    let format = pigeonVar_list[11] as! OutputFormat
+    let quality = pigeonVar_list[12] as! Double
+
+    return ComposeTextRequest(
+      baseImage: baseImage,
+      text: text,
+      anchor: anchor,
+      margin: margin,
+      marginUnit: marginUnit,
+      offsetX: offsetX,
+      offsetY: offsetY,
+      offsetUnit: offsetUnit,
+      widthPercent: widthPercent,
+      textStyle: textStyle,
+      style: style,
+      format: format,
+      quality: quality
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      baseImage,
+      text,
+      anchor,
+      margin,
+      marginUnit,
+      offsetX,
+      offsetY,
+      offsetUnit,
+      widthPercent,
+      textStyle,
+      style,
+      format,
+      quality,
+    ]
+  }
+  static func == (lhs: ComposeTextRequest, rhs: ComposeTextRequest) -> Bool {
+    return deepEqualsMessages(lhs.toList(), rhs.toList())  }
+  func hash(into hasher: inout Hasher) {
+    deepHashMessages(value: toList(), hasher: &hasher)
+  }
+}
+
 private class MessagesPigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
@@ -284,18 +431,24 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
         return OutputFormat(rawValue: enumResultAsInt)
       }
       return nil
-    case 134:
+    case 131:
       let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
       if let enumResultAsInt = enumResultAsInt {
         return Unit(rawValue: enumResultAsInt)
       }
       return nil
-    case 131:
-      return _Cfg.fromList(self.readValue() as! [Any?])
     case 132:
-      return ComposeImageRequest.fromList(self.readValue() as! [Any?])
+      return _Cfg.fromList(self.readValue() as! [Any?])
     case 133:
+      return ComposeImageRequest.fromList(self.readValue() as! [Any?])
+    case 134:
       return ComposeImageResult.fromList(self.readValue() as! [Any?])
+    case 135:
+      return TextStyleDto.fromList(self.readValue() as! [Any?])
+    case 136:
+      return WmStyleDto.fromList(self.readValue() as! [Any?])
+    case 137:
+      return ComposeTextRequest.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -311,16 +464,25 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
       super.writeByte(130)
       super.writeValue(value.rawValue)
     } else if let value = value as? Unit {
-      super.writeByte(134)
+      super.writeByte(131)
       super.writeValue(value.rawValue)
     } else if let value = value as? _Cfg {
-      super.writeByte(131)
-      super.writeValue(value.toList())
-    } else if let value = value as? ComposeImageRequest {
       super.writeByte(132)
       super.writeValue(value.toList())
-    } else if let value = value as? ComposeImageResult {
+    } else if let value = value as? ComposeImageRequest {
       super.writeByte(133)
+      super.writeValue(value.toList())
+    } else if let value = value as? ComposeImageResult {
+      super.writeByte(134)
+      super.writeValue(value.toList())
+    } else if let value = value as? TextStyleDto {
+      super.writeByte(135)
+      super.writeValue(value.toList())
+    } else if let value = value as? WmStyleDto {
+      super.writeByte(136)
+      super.writeValue(value.toList())
+    } else if let value = value as? ComposeTextRequest {
+      super.writeByte(137)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -346,6 +508,7 @@ class MessagesPigeonCodec: FlutterStandardMessageCodec, @unchecked Sendable {
 /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
 protocol WatermarkApi {
   func composeImage(request: ComposeImageRequest, completion: @escaping (Result<ComposeImageResult, Error>) -> Void)
+  func composeText(request: ComposeTextRequest, completion: @escaping (Result<ComposeImageResult, Error>) -> Void)
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -370,6 +533,23 @@ class WatermarkApiSetup {
       }
     } else {
       composeImageChannel.setMessageHandler(nil)
+    }
+    let composeTextChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.watermark_kit.WatermarkApi.composeText\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      composeTextChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let requestArg = args[0] as! ComposeTextRequest
+        api.composeText(request: requestArg) { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      composeTextChannel.setMessageHandler(nil)
     }
   }
 }
