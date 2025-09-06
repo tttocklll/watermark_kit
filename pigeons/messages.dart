@@ -12,8 +12,6 @@ import 'package:pigeon/pigeon.dart';
     swiftOptions: SwiftOptions(),
   ),
 )
-class _Cfg {}
-
 enum Anchor { topLeft, topRight, bottomLeft, bottomRight, center }
 
 enum OutputFormat { jpeg, png }
