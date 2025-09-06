@@ -130,12 +130,20 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
   }
 
   private static func decodeCIImage(from data: Data) -> CIImage? {
-    guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-          let cg = CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCache: true] as CFDictionary) else {
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
       return nil
     }
-    // Normalize orientation by creating CIImage from CGImage
-    return CIImage(cgImage: cg, options: [.applyOrientationProperty: true])
+    let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+    let exif = (props?[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
+    var image: CIImage?
+    if let cg = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+      image = CIImage(cgImage: cg)
+    } else {
+      image = CIImage(data: data)
+    }
+    guard let base = image else { return nil }
+    // Apply EXIF orientation to normalize to .up
+    return base.oriented(forExifOrientation: Int32(exif))
   }
 
   private static func encodeJPEG(cgImage: CGImage, quality: Double) -> Data? {
