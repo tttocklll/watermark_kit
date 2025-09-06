@@ -141,6 +141,11 @@ enum OutputFormat: Int {
   case png = 1
 }
 
+enum Unit: Int {
+  case px = 0
+  case percent = 1
+}
+
 /// Generated class from Pigeon that represents data sent in messages.
 struct _Cfg: Hashable {
 
@@ -174,6 +179,8 @@ struct ComposeImageRequest: Hashable {
   var quality: Double
   var offsetX: Double
   var offsetY: Double
+  var marginUnit: Unit
+  var offsetUnit: Unit
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -188,6 +195,8 @@ struct ComposeImageRequest: Hashable {
     let quality = pigeonVar_list[7] as! Double
     let offsetX = pigeonVar_list[8] as! Double
     let offsetY = pigeonVar_list[9] as! Double
+    let marginUnit = pigeonVar_list[10] as! Unit
+    let offsetUnit = pigeonVar_list[11] as! Unit
 
     return ComposeImageRequest(
       baseImage: baseImage,
@@ -199,7 +208,9 @@ struct ComposeImageRequest: Hashable {
       format: format,
       quality: quality,
       offsetX: offsetX,
-      offsetY: offsetY
+      offsetY: offsetY,
+      marginUnit: marginUnit,
+      offsetUnit: offsetUnit
     )
   }
   func toList() -> [Any?] {
@@ -214,6 +225,8 @@ struct ComposeImageRequest: Hashable {
       quality,
       offsetX,
       offsetY,
+      marginUnit,
+      offsetUnit,
     ]
   }
   static func == (lhs: ComposeImageRequest, rhs: ComposeImageRequest) -> Bool {
@@ -271,6 +284,12 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
         return OutputFormat(rawValue: enumResultAsInt)
       }
       return nil
+    case 134:
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return Unit(rawValue: enumResultAsInt)
+      }
+      return nil
     case 131:
       return _Cfg.fromList(self.readValue() as! [Any?])
     case 132:
@@ -290,6 +309,9 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
       super.writeValue(value.rawValue)
     } else if let value = value as? OutputFormat {
       super.writeByte(130)
+      super.writeValue(value.rawValue)
+    } else if let value = value as? Unit {
+      super.writeByte(134)
       super.writeValue(value.rawValue)
     } else if let value = value as? _Cfg {
       super.writeByte(131)

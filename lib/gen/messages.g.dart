@@ -42,6 +42,11 @@ enum OutputFormat {
   png,
 }
 
+enum Unit {
+  px,
+  percent,
+}
+
 class _Cfg {
   _Cfg();
 
@@ -66,6 +71,8 @@ class ComposeImageRequest {
     this.quality = 0.9,
     this.offsetX = 0.0,
     this.offsetY = 0.0,
+    this.marginUnit = Unit.px,
+    this.offsetUnit = Unit.px,
   });
 
   Uint8List baseImage;
@@ -88,6 +95,10 @@ class ComposeImageRequest {
 
   double offsetY;
 
+  Unit marginUnit;
+
+  Unit offsetUnit;
+
   List<Object?> _toList() {
     return <Object?>[
       baseImage,
@@ -100,6 +111,8 @@ class ComposeImageRequest {
       quality,
       offsetX,
       offsetY,
+      marginUnit,
+      offsetUnit,
     ];
   }
 
@@ -119,6 +132,8 @@ class ComposeImageRequest {
       quality: result[7]! as double,
       offsetX: result[8]! as double,
       offsetY: result[9]! as double,
+      marginUnit: result[10]! as Unit,
+      offsetUnit: result[11]! as Unit,
     );
   }
 
@@ -205,6 +220,9 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is OutputFormat) {
       buffer.putUint8(130);
       writeValue(buffer, value.index);
+    }    else if (value is Unit) {
+      buffer.putUint8(134);
+      writeValue(buffer, value.index);
     }    else if (value is _Cfg) {
       buffer.putUint8(131);
       writeValue(buffer, value.encode());
@@ -228,6 +246,9 @@ class _PigeonCodec extends StandardMessageCodec {
       case 130: 
         final int? value = readValue(buffer) as int?;
         return value == null ? null : OutputFormat.values[value];
+      case 134: 
+        final int? value = readValue(buffer) as int?;
+        return value == null ? null : Unit.values[value];
       case 131: 
         return _Cfg.decode(readValue(buffer)!);
       case 132: 

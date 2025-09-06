@@ -17,6 +17,7 @@ class _Cfg {}
 enum Anchor { topLeft, topRight, bottomLeft, bottomRight, center }
 
 enum OutputFormat { jpeg, png }
+enum Unit { px, percent }
 
 class ComposeImageRequest {
   ComposeImageRequest({
@@ -30,6 +31,8 @@ class ComposeImageRequest {
     this.quality = 0.9,
     this.offsetX = 0.0,
     this.offsetY = 0.0,
+    this.marginUnit = Unit.px,
+    this.offsetUnit = Unit.px,
   });
 
   Uint8List baseImage;
@@ -42,6 +45,8 @@ class ComposeImageRequest {
   double quality;
   double offsetX;
   double offsetY;
+  Unit marginUnit;
+  Unit offsetUnit;
 }
 
 class ComposeImageResult {
