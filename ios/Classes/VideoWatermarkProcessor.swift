@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import CoreImage
 import UIKit
+import ImageIO
 
 final class VideoWatermarkProcessor {
   private let queue = DispatchQueue(label: "wm.video", qos: .userInitiated)
@@ -43,7 +44,7 @@ final class VideoWatermarkProcessor {
       do {
         try self.process(plugin: plugin, state: state, callbacks: callbacks, taskId: taskId, onComplete: onComplete, onError: onError)
       } catch let err {
-        callbacks.onVideoError(taskId: taskId, code: "compose_failed", message: err.localizedDescription)
+        callbacks.onVideoError(taskId: taskId, code: "compose_failed", message: err.localizedDescription) { _ in }
         onError("compose_failed", err.localizedDescription)
         self.tasks[taskId] = nil
       }
@@ -75,7 +76,6 @@ final class VideoWatermarkProcessor {
 
     // Prepare overlay CIImage once
     let overlayCI: CIImage? = try Self.prepareOverlayCI(request: request, plugin: plugin, baseWidth: display.width, baseHeight: display.height)
-    let overlayParams = (anchor: request.anchor, margin: request.margin, marginUnit: request.marginUnit, offsetX: request.offsetX, offsetY: request.offsetY, offsetUnit: request.offsetUnit)
 
     let reader = try AVAssetReader(asset: asset)
     let videoReaderOutput = AVAssetReaderTrackOutput(track: videoTrack, outputSettings: [
@@ -99,15 +99,19 @@ final class VideoWatermarkProcessor {
     let writer = try AVAssetWriter(outputURL: state.outputURL, fileType: .mp4)
     // Video writer input
     let codec: AVVideoCodecType = (request.codec == .hevc) ? .hevc : .h264
-    let bitrate = request.bitrateBps ?? Self.estimateBitrate(width: Int(display.width), height: Int(display.height), fps: Float(videoTrack.nominalFrameRate))
+    let defaultBitrate = Int64(Self.estimateBitrate(width: Int(display.width), height: Int(display.height), fps: Float(videoTrack.nominalFrameRate)))
+    let bitrate64: Int64 = request.bitrateBps ?? defaultBitrate
+    var compression: [String: Any] = [
+      AVVideoAverageBitRateKey: NSNumber(value: bitrate64),
+    ]
+    if codec == .h264 {
+      compression[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel
+    }
     let videoSettings: [String: Any] = [
       AVVideoCodecKey: codec,
       AVVideoWidthKey: Int(display.width),
       AVVideoHeightKey: Int(display.height),
-      AVVideoCompressionPropertiesKey: [
-        AVVideoAverageBitRateKey: bitrate,
-        AVVideoProfileLevelKey: codec == .h264 ? AVVideoProfileLevelH264HighAutoLevel : AVVideoProfileLevelHEVCMainAutoLevel
-      ]
+      AVVideoCompressionPropertiesKey: compression,
     ]
     let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
     videoInput.expectsMediaDataInRealTime = false
@@ -189,7 +193,7 @@ final class VideoWatermarkProcessor {
 
           // Progress
           let p = max(0.0, min(1.0, CMTimeGetSeconds(pts) / max(0.001, duration)))
-          callbacks.onVideoProgress(taskId: taskId, progress: p, etaSec: max(0.0, duration - CMTimeGetSeconds(pts)))
+          callbacks.onVideoProgress(taskId: taskId, progress: p, etaSec: max(0.0, duration - CMTimeGetSeconds(pts))) { _ in }
         } else {
           // Back off a little
           usleep(2000)
@@ -210,7 +214,7 @@ final class VideoWatermarkProcessor {
       audioInput?.markAsFinished()
       writer.cancelWriting()
       try? FileManager.default.removeItem(at: state.outputURL)
-      callbacks.onVideoError(taskId: taskId, code: "cancelled", message: "Cancelled")
+      callbacks.onVideoError(taskId: taskId, code: "cancelled", message: "Cancelled") { _ in }
       onError("cancelled", "Cancelled")
       tasks[taskId] = nil
       return
@@ -238,11 +242,11 @@ final class VideoWatermarkProcessor {
                                      height: Int64(display.height),
                                      durationMs: Int64(duration * 1000.0),
                                      codec: request.codec)
-        callbacks.onVideoCompleted(result: res)
+        callbacks.onVideoCompleted(result: res) { _ in }
         onComplete(res)
       } else {
         let msg = writer.error?.localizedDescription ?? "Unknown writer error"
-        callbacks.onVideoError(taskId: taskId, code: "encode_failed", message: msg)
+        callbacks.onVideoError(taskId: taskId, code: "encode_failed", message: msg) { _ in }
         onError("encode_failed", msg)
       }
       self.tasks[taskId] = nil
