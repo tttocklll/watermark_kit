@@ -5,9 +5,11 @@ import ImageIO
 import MobileCoreServices
 
 public class WatermarkKitPlugin: NSObject, FlutterPlugin {
+  weak var messenger: FlutterBinaryMessenger?
   public static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(name: "watermark_kit", binaryMessenger: registrar.messenger())
     let instance = WatermarkKitPlugin()
+    instance.messenger = registrar.messenger()
     registrar.addMethodCallDelegate(instance, channel: channel)
     // Pigeon API setup
     WatermarkApiSetup.setUp(binaryMessenger: registrar.messenger(), api: WatermarkApiImpl(plugin: instance))
@@ -40,6 +42,9 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
     }
     return CIContext(options: [CIContextOption.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!])
   }()
+
+  // Expose shared CIContext for other classes in the module.
+  public var sharedCIContext: CIContext { ciContext }
 
   struct ComposeError: Error {
     let code: String

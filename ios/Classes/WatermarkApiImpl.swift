@@ -5,6 +5,7 @@ import Flutter
 
 final class WatermarkApiImpl: WatermarkApi {
   private weak var plugin: WatermarkKitPlugin?
+  private let videoProcessor = VideoWatermarkProcessor()
 
   init(plugin: WatermarkKitPlugin) {
     self.plugin = plugin
@@ -96,5 +97,36 @@ final class WatermarkApiImpl: WatermarkApi {
     } catch let err {
       completion(.failure(PigeonError(code: "compose_text_failed", message: err.localizedDescription, details: nil)))
     }
+  }
+
+  // MARK: - Video
+  func composeVideo(request: ComposeVideoRequest, completion: @escaping (Result<ComposeVideoResult, Error>) -> Void) {
+    guard let plugin = plugin else {
+      completion(.failure(PigeonError(code: "plugin_missing", message: "Plugin instance deallocated", details: nil)))
+      return
+    }
+    guard let messenger = plugin.messenger else {
+      completion(.failure(PigeonError(code: "messenger_missing", message: "Binary messenger unavailable", details: nil)))
+      return
+    }
+    let callbacks = WatermarkCallbacks(binaryMessenger: messenger)
+    let taskId = request.taskId ?? UUID().uuidString
+    // Start async processing and fulfill the Pigeon completion via closures.
+    videoProcessor.start(
+      plugin: plugin,
+      request: request,
+      callbacks: callbacks,
+      taskId: taskId,
+      onComplete: { res in
+        completion(.success(res))
+      },
+      onError: { code, message in
+        completion(.failure(PigeonError(code: code, message: message, details: nil)))
+      }
+    )
+  }
+
+  func cancel(taskId: String) throws {
+    videoProcessor.cancel(taskId: taskId)
   }
 }
