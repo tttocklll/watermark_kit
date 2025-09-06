@@ -56,4 +56,39 @@ abstract class WatermarkKitPlatform extends PlatformInterface {
   }) {
     throw UnimplementedError('composeImage() has not been implemented.');
   }
+
+  /// Composes [inputImage] with a text watermark and returns encoded bytes.
+  ///
+  /// Options (defaults mirror composeImage where applicable):
+  /// - text: watermark text (required)
+  /// - anchor: 'topLeft'|'topRight'|'bottomLeft'|'bottomRight'|'center' (default: 'bottomRight')
+  /// - margin: logical px (default: 16.0) with [marginUnit] 'px'|'percent'
+  /// - offsetX/offsetY: offsets with [offsetUnit] 'px'|'percent' (default: 0)
+  /// - widthPercent: 0..1 of base width to fit text (default: 0.18)
+  /// - opacity: 0..1 applied post‑raster (default: 0.6)
+  /// - format: 'jpeg' | 'png' (default: 'jpeg'), JPEG [quality] 0..1
+  /// - fontFamily: default '.SFUI'
+  /// - fontSizePt: default 24.0
+  /// - fontWeight: 100..900 (default 600)
+  /// - colorArgb: ARGB32 integer (default 0xFFFFFFFF)
+  Future<Uint8List> composeTextImage({
+    required Uint8List inputImage,
+    required String text,
+    String anchor = 'bottomRight',
+    double margin = 16.0,
+    String marginUnit = 'px',
+    double offsetX = 0.0,
+    double offsetY = 0.0,
+    String offsetUnit = 'px',
+    double widthPercent = 0.18,
+    double opacity = 0.6,
+    String format = 'jpeg',
+    double quality = 0.9,
+    String fontFamily = '.SFUI',
+    double fontSizePt = 24.0,
+    int fontWeight = 600,
+    int colorArgb = 0xFFFFFFFF,
+  }) {
+    throw UnimplementedError('composeTextImage() has not been implemented.');
+  }
 }
