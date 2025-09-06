@@ -83,12 +83,12 @@ class _MyAppState extends State<MyApp> {
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Watermark Kit Example'),
-            bottom: const TabBar(tabs: [
+            bottom: TabBar(tabs: [
               Tab(text: 'Image'),
               Tab(text: 'Video'),
             ]),
           ),
-          body: const TabBarView(children: [
+          body: TabBarView(children: [
             _ImageTab(),
             _VideoTab(),
           ]),
