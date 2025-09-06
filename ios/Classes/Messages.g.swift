@@ -172,6 +172,8 @@ struct ComposeImageRequest: Hashable {
   var opacity: Double
   var format: OutputFormat
   var quality: Double
+  var offsetX: Double
+  var offsetY: Double
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -184,6 +186,8 @@ struct ComposeImageRequest: Hashable {
     let opacity = pigeonVar_list[5] as! Double
     let format = pigeonVar_list[6] as! OutputFormat
     let quality = pigeonVar_list[7] as! Double
+    let offsetX = pigeonVar_list[8] as! Double
+    let offsetY = pigeonVar_list[9] as! Double
 
     return ComposeImageRequest(
       baseImage: baseImage,
@@ -193,7 +197,9 @@ struct ComposeImageRequest: Hashable {
       widthPercent: widthPercent,
       opacity: opacity,
       format: format,
-      quality: quality
+      quality: quality,
+      offsetX: offsetX,
+      offsetY: offsetY
     )
   }
   func toList() -> [Any?] {
@@ -206,6 +212,8 @@ struct ComposeImageRequest: Hashable {
       opacity,
       format,
       quality,
+      offsetX,
+      offsetY,
     ]
   }
   static func == (lhs: ComposeImageRequest, rhs: ComposeImageRequest) -> Bool {

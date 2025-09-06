@@ -64,6 +64,8 @@ class ComposeImageRequest {
     this.opacity = 0.6,
     this.format = OutputFormat.jpeg,
     this.quality = 0.9,
+    this.offsetX = 0.0,
+    this.offsetY = 0.0,
   });
 
   Uint8List baseImage;
@@ -82,6 +84,10 @@ class ComposeImageRequest {
 
   double quality;
 
+  double offsetX;
+
+  double offsetY;
+
   List<Object?> _toList() {
     return <Object?>[
       baseImage,
@@ -92,6 +98,8 @@ class ComposeImageRequest {
       opacity,
       format,
       quality,
+      offsetX,
+      offsetY,
     ];
   }
 
@@ -109,6 +117,8 @@ class ComposeImageRequest {
       opacity: result[5]! as double,
       format: result[6]! as OutputFormat,
       quality: result[7]! as double,
+      offsetX: result[8]! as double,
+      offsetY: result[9]! as double,
     );
   }
 

@@ -28,6 +28,8 @@ class ComposeImageRequest {
     this.opacity = 0.6,
     this.format = OutputFormat.jpeg,
     this.quality = 0.9,
+    this.offsetX = 0.0,
+    this.offsetY = 0.0,
   });
 
   Uint8List baseImage;
@@ -38,6 +40,8 @@ class ComposeImageRequest {
   double opacity;
   OutputFormat format;
   double quality;
+  double offsetX;
+  double offsetY;
 }
 
 class ComposeImageResult {
@@ -57,4 +61,3 @@ abstract class WatermarkApi {
   @async
   ComposeImageResult composeImage(ComposeImageRequest request);
 }
-
