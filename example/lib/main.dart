@@ -626,33 +626,26 @@ class _VideoTabState extends State<_VideoTab> {
   }
 
   Widget _videoPlayer(VideoPlayerController c) {
-    return FutureBuilder(
-      future: c.initialize(),
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const SizedBox(height: 180, child: Center(child: CircularProgressIndicator()));
-        }
-        return AspectRatio(
-          aspectRatio: c.value.aspectRatio == 0 ? 16 / 9 : c.value.aspectRatio,
-          child: Stack(children: [
-            VideoPlayer(c),
-            Positioned(
-              bottom: 8,
-              right: 8,
-              child: Row(children: [
-                IconButton(
-                  icon: Icon(c.value.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
-                  onPressed: () {
-                    setState(() {
-                      c.value.isPlaying ? c.pause() : c.play();
-                    });
-                  },
-                )
-              ]),
+    // Controller is initialized before setting state.
+    return AspectRatio(
+      aspectRatio: c.value.aspectRatio == 0 ? 16 / 9 : c.value.aspectRatio,
+      child: Stack(children: [
+        VideoPlayer(c),
+        Positioned(
+          bottom: 8,
+          right: 8,
+          child: Row(children: [
+            IconButton(
+              icon: Icon(c.value.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
+              onPressed: () {
+                setState(() {
+                  c.value.isPlaying ? c.pause() : c.play();
+                });
+              },
             )
           ]),
-        );
-      },
+        )
+      ]),
     );
   }
 
@@ -684,8 +677,9 @@ class _VideoTabState extends State<_VideoTab> {
     try {
       final x = await _picker.pickImage(source: ImageSource.gallery);
       if (x == null) return;
-      setState(() async {
-        _wmImage = await x.readAsBytes();
+      final bytes = await x.readAsBytes();
+      setState(() {
+        _wmImage = bytes;
       });
     } catch (e) {
       _snack('Pick watermark failed: $e');
@@ -718,6 +712,8 @@ class _VideoTabState extends State<_VideoTab> {
       final res = await task.done;
       _snack('Video done: ${res.path}');
       final c = VideoPlayerController.file(File(res.path));
+      await c.initialize();
+      await c.setLooping(true);
       setState(() => _outController = c);
     } catch (e) {
       _snack('Video failed: $e');
