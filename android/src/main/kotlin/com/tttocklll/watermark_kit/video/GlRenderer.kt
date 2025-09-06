@@ -38,16 +38,6 @@ internal class GlRenderer {
     val ctxAttribs = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
     context = EGL14.eglCreateContext(display, configs[0], EGL14.EGL_NO_CONTEXT, ctxAttribs, 0)
     makeNothingCurrent()
-
-    // Programs
-    progOes = ShaderPrograms.buildExternalOes()
-    prog2d = ShaderPrograms.buildTexture2D()
-
-    // External texture + SurfaceTexture for decoder output
-    oesTexId = genExternalTexture()
-    surfaceTexture = SurfaceTexture(oesTexId)
-    surfaceTexture!!.setDefaultBufferSize(16, 16) // updated by decoder
-    surface = Surface(surfaceTexture)
   }
 
   fun getDecoderSurface(): Surface = surface!!
@@ -87,6 +77,14 @@ internal class GlRenderer {
     EGL14.eglChooseConfig(display, cfgAttribs, 0, configs, 0, 1, num, 0)
     val attrs = intArrayOf(EGL14.EGL_NONE)
     encoderSurface = EGL14.eglCreateWindowSurface(display, configs[0], inputSurface, attrs, 0)
+    // Make current and lazily build programs and external texture
+    makeCurrent()
+    progOes = ShaderPrograms.buildExternalOes()
+    prog2d = ShaderPrograms.buildTexture2D()
+    oesTexId = genExternalTexture()
+    surfaceTexture = SurfaceTexture(oesTexId)
+    surfaceTexture!!.setDefaultBufferSize(16, 16)
+    surface = Surface(surfaceTexture)
   }
 
   fun makeCurrent() {
@@ -240,4 +238,3 @@ internal class GlRenderer {
     )
   }
 }
-
