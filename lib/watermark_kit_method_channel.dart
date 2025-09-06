@@ -29,6 +29,8 @@ class MethodChannelWatermarkKit extends WatermarkKitPlatform {
     double quality = 0.9,
     double offsetX = 0.0,
     double offsetY = 0.0,
+    String marginUnit = 'px',
+    String offsetUnit = 'px',
   }) async {
     pigeon.Anchor _anchorFromString(String s) {
       switch (s) {
@@ -56,6 +58,16 @@ class MethodChannelWatermarkKit extends WatermarkKitPlatform {
       }
     }
 
+    pigeon.Unit _unitFromString(String s) {
+      switch (s) {
+        case 'percent':
+          return pigeon.Unit.percent;
+        case 'px':
+        default:
+          return pigeon.Unit.px;
+      }
+    }
+
     final api = pigeon.WatermarkApi();
     final req = pigeon.ComposeImageRequest(
       baseImage: inputImage,
@@ -68,6 +80,8 @@ class MethodChannelWatermarkKit extends WatermarkKitPlatform {
       quality: quality,
       offsetX: offsetX,
       offsetY: offsetY,
+      marginUnit: _unitFromString(marginUnit),
+      offsetUnit: _unitFromString(offsetUnit),
     );
     try {
       final res = await api.composeImage(req);
@@ -85,6 +99,8 @@ class MethodChannelWatermarkKit extends WatermarkKitPlatform {
         'quality': quality,
         'offsetX': offsetX,
         'offsetY': offsetY,
+        'marginUnit': marginUnit,
+        'offsetUnit': offsetUnit,
       };
       final bytes = await methodChannel.invokeMethod<Uint8List>('composeImage', args);
       if (bytes == null) {

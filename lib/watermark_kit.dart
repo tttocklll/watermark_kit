@@ -18,6 +18,8 @@ class WatermarkKit {
     double quality = 0.9,
     double offsetX = 0.0,
     double offsetY = 0.0,
+    String marginUnit = 'px',
+    String offsetUnit = 'px',
   }) {
     return WatermarkKitPlatform.instance.composeImage(
       inputImage: inputImage,
@@ -30,6 +32,8 @@ class WatermarkKit {
       quality: quality,
       offsetX: offsetX,
       offsetY: offsetY,
+      marginUnit: marginUnit,
+      offsetUnit: offsetUnit,
     );
   }
 }
