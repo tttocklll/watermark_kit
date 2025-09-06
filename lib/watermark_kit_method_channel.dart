@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'gen/messages.g.dart' as pigeon;
 import 'watermark_kit_platform_interface.dart';
 import 'dart:typed_data';
+import 'dart:async';
+import 'video_task.dart';
 
 /// An implementation of [WatermarkKitPlatform] that uses method channels.
 class MethodChannelWatermarkKit extends WatermarkKitPlatform {
@@ -221,6 +223,146 @@ class MethodChannelWatermarkKit extends WatermarkKitPlatform {
       case 'px':
       default:
         return pigeon.Unit.px;
+    }
+  }
+  // ---------------- Video API ----------------
+  static final Map<String, _VideoTaskState> _tasks = {};
+  static bool _callbacksInitialized = false;
+
+  void _ensureCallbacksRegistered() {
+    if (_callbacksInitialized) return;
+    pigeon.WatermarkCallbacks.setUp(_CallbacksImpl());
+    _callbacksInitialized = true;
+  }
+
+  String _genTaskId() {
+    final now = DateTime.now().microsecondsSinceEpoch;
+    final rand = (now ^ 0x5f3759df).toUnsigned(32).toRadixString(16);
+    return 'wm_${now}_${rand}';
+  }
+
+  @override
+  Future<VideoTask> composeVideo({
+    required String inputVideoPath,
+    String? outputVideoPath,
+    Uint8List? watermarkImage,
+    String? text,
+    String anchor = 'bottomRight',
+    double margin = 16.0,
+    String marginUnit = 'px',
+    double offsetX = 0.0,
+    double offsetY = 0.0,
+    String offsetUnit = 'px',
+    double widthPercent = 0.18,
+    double opacity = 0.6,
+    String codec = 'h264',
+    int? bitrateBps,
+    double? maxFps,
+    int? maxLongSide,
+  }) async {
+    _ensureCallbacksRegistered();
+    final taskId = _genTaskId();
+    final ctrl = StreamController<double>.broadcast();
+    final completer = Completer<VideoResult>();
+    _tasks[taskId] = _VideoTaskState(ctrl, completer);
+
+    pigeon.ComposeVideoRequest req = pigeon.ComposeVideoRequest(
+      taskId: taskId,
+      inputVideoPath: inputVideoPath,
+      outputVideoPath: outputVideoPath,
+      watermarkImage: watermarkImage,
+      text: text,
+      anchor: _anchorFromString(anchor),
+      margin: margin,
+      marginUnit: _unitFromString(marginUnit),
+      offsetX: offsetX,
+      offsetY: offsetY,
+      offsetUnit: _unitFromString(offsetUnit),
+      widthPercent: widthPercent,
+      opacity: opacity,
+      codec: (codec == 'hevc') ? pigeon.VideoCodec.hevc : pigeon.VideoCodec.h264,
+      bitrateBps: bitrateBps,
+      maxFps: maxFps,
+      maxLongSide: maxLongSide,
+    );
+
+    // Fire-and-forget; completion will also complete the future
+    unawaited(pigeon.WatermarkApi().composeVideo(req).then((res) {
+      // Fallback completion in case onVideoCompleted wasn't received
+      final st = _tasks[res.taskId];
+      if (st != null && !st.completer.isCompleted) {
+        st.ctrl.close();
+        st.completer.complete(VideoResult(
+          path: res.outputVideoPath,
+          width: res.width,
+          height: res.height,
+          durationMs: res.durationMs,
+          codec: res.codec == pigeon.VideoCodec.hevc ? 'hevc' : 'h264',
+        ));
+        _tasks.remove(res.taskId);
+      }
+    }).catchError((e, st) {
+      // If error surfaces via returned Future
+      final s = _tasks.remove(taskId);
+      if (s != null && !s.completer.isCompleted) {
+        s.ctrl.addError(e, st);
+        s.ctrl.close();
+        s.completer.completeError(e, st);
+      }
+    }));
+
+    return VideoTask(
+      taskId: taskId,
+      progress: ctrl.stream,
+      done: completer.future,
+      cancel: () async {
+        await pigeon.WatermarkApi().cancel(taskId);
+      },
+    );
+  }
+
+  @override
+  Future<void> cancelVideo(String taskId) async {
+    await pigeon.WatermarkApi().cancel(taskId);
+  }
+}
+
+class _VideoTaskState {
+  final StreamController<double> ctrl;
+  final Completer<VideoResult> completer;
+  _VideoTaskState(this.ctrl, this.completer);
+}
+
+class _CallbacksImpl extends pigeon.WatermarkCallbacks {
+  @override
+  void onVideoProgress(String taskId, double progress, double etaSec) {
+    final st = MethodChannelWatermarkKit._tasks[taskId];
+    st?.ctrl.add(progress);
+  }
+
+  @override
+  void onVideoCompleted(pigeon.ComposeVideoResult result) {
+    final st = MethodChannelWatermarkKit._tasks.remove(result.taskId);
+    if (st != null && !st.completer.isCompleted) {
+      st.ctrl.close();
+      st.completer.complete(VideoResult(
+        path: result.outputVideoPath,
+        width: result.width,
+        height: result.height,
+        durationMs: result.durationMs,
+        codec: result.codec == pigeon.VideoCodec.hevc ? 'hevc' : 'h264',
+      ));
+    }
+  }
+
+  @override
+  void onVideoError(String taskId, String code, String message) {
+    final st = MethodChannelWatermarkKit._tasks.remove(taskId);
+    if (st != null && !st.completer.isCompleted) {
+      final err = PlatformException(code: code, message: message);
+      st.ctrl.addError(err);
+      st.ctrl.close();
+      st.completer.completeError(err);
     }
   }
 }

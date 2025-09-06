@@ -29,6 +29,9 @@ class _MyAppState extends State<MyApp> {
   Uint8List? _watermarkImage;
   Uint8List? _resultImage;
   String _text = '© Watermark Kit';
+  String? _videoPath;
+  double _videoProgress = 0.0;
+  VideoTask? _videoTask;
 
   String _anchor = 'bottomRight';
   double _margin = 16.0;
@@ -122,6 +125,33 @@ class _MyAppState extends State<MyApp> {
                     ),
                   ],
                 )
+                ,
+                const SizedBox(height: 24),
+                const Divider(),
+                const Text('Video (iOS only)'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    ElevatedButton(
+                      onPressed: _pickVideo,
+                      child: const Text('Pick Video'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: (_videoPath != null && _videoTask == null) ? _startVideo : null,
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('Compose Video'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: (_videoTask != null) ? _cancelVideo : null,
+                      icon: const Icon(Icons.stop),
+                      label: const Text('Cancel'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(value: (_videoTask != null) ? _videoProgress : null),
               ],
             ),
           ),
@@ -348,6 +378,57 @@ class _MyAppState extends State<MyApp> {
     } finally {
       if (mounted) setState(() => _isComposing = false);
     }
+  }
+
+  Future<void> _pickVideo() async {
+    try {
+      final xfile = await _picker.pickVideo(source: ImageSource.gallery);
+      if (xfile == null) return;
+      setState(() => _videoPath = xfile.path);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Pick video failed: $e')));
+    }
+  }
+
+  Future<void> _startVideo() async {
+    if (_videoPath == null) return;
+    setState(() {
+      _videoProgress = 0.0;
+    });
+    try {
+      final task = await _watermarkKitPlugin.composeVideo(
+        inputVideoPath: _videoPath!,
+        text: _text,
+        anchor: _anchor,
+        margin: _margin,
+        marginUnit: 'px',
+        offsetX: _offsetX,
+        offsetY: _offsetY,
+        offsetUnit: 'px',
+        widthPercent: _widthPercent,
+        opacity: _opacity,
+        codec: 'h264',
+      );
+      setState(() => _videoTask = task);
+      task.progress.listen((p) {
+        setState(() => _videoProgress = p);
+      });
+      final res = await task.done;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Video done: ${res.path}')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Video failed: $e')));
+    } finally {
+      if (mounted) setState(() => _videoTask = null);
+    }
+  }
+
+  Future<void> _cancelVideo() async {
+    final t = _videoTask;
+    if (t == null) return;
+    await t.cancel();
   }
 
   Future<Uint8List> _generateSampleBasePng(int width, int height) async {

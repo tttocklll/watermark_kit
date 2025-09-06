@@ -1,6 +1,7 @@
 
 import 'dart:typed_data';
 import 'watermark_kit_platform_interface.dart';
+import 'video_task.dart';
 
 class WatermarkKit {
   Future<String?> getPlatformVersion() {
@@ -72,6 +73,44 @@ class WatermarkKit {
       fontSizePt: fontSizePt,
       fontWeight: fontWeight,
       colorArgb: colorArgb,
+    );
+  }
+
+  Future<VideoTask> composeVideo({
+    required String inputVideoPath,
+    String? outputVideoPath,
+    Uint8List? watermarkImage,
+    String? text,
+    String anchor = 'bottomRight',
+    double margin = 16.0,
+    String marginUnit = 'px',
+    double offsetX = 0.0,
+    double offsetY = 0.0,
+    String offsetUnit = 'px',
+    double widthPercent = 0.18,
+    double opacity = 0.6,
+    String codec = 'h264',
+    int? bitrateBps,
+    double? maxFps,
+    int? maxLongSide,
+  }) {
+    return WatermarkKitPlatform.instance.composeVideo(
+      inputVideoPath: inputVideoPath,
+      outputVideoPath: outputVideoPath,
+      watermarkImage: watermarkImage,
+      text: text,
+      anchor: anchor,
+      margin: margin,
+      marginUnit: marginUnit,
+      offsetX: offsetX,
+      offsetY: offsetY,
+      offsetUnit: offsetUnit,
+      widthPercent: widthPercent,
+      opacity: opacity,
+      codec: codec,
+      bitrateBps: bitrateBps,
+      maxFps: maxFps,
+      maxLongSide: maxLongSide,
     );
   }
 }

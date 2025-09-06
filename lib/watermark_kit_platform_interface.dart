@@ -2,6 +2,7 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'watermark_kit_method_channel.dart';
 import 'dart:typed_data';
+import 'video_task.dart';
 
 abstract class WatermarkKitPlatform extends PlatformInterface {
   /// Constructs a WatermarkKitPlatform.
@@ -90,5 +91,32 @@ abstract class WatermarkKitPlatform extends PlatformInterface {
     int colorArgb = 0xFFFFFFFF,
   }) {
     throw UnimplementedError('composeTextImage() has not been implemented.');
+  }
+
+  /// Starts composing a watermark over a video file on iOS.
+  /// Returns a [VideoTask] that exposes a progress stream and completion future.
+  Future<VideoTask> composeVideo({
+    required String inputVideoPath,
+    String? outputVideoPath,
+    Uint8List? watermarkImage,
+    String? text,
+    String anchor = 'bottomRight',
+    double margin = 16.0,
+    String marginUnit = 'px',
+    double offsetX = 0.0,
+    double offsetY = 0.0,
+    String offsetUnit = 'px',
+    double widthPercent = 0.18,
+    double opacity = 0.6,
+    String codec = 'h264',
+    int? bitrateBps,
+    double? maxFps,
+    int? maxLongSide,
+  }) {
+    throw UnimplementedError('composeVideo() has not been implemented.');
+  }
+
+  Future<void> cancelVideo(String taskId) {
+    throw UnimplementedError('cancelVideo() has not been implemented.');
   }
 }
