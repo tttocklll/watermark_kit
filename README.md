@@ -72,6 +72,22 @@ final textBytes = await wm.composeTextImage(
 );
 ```
 
+### Video (iOS only, experimental)
+
+```
+final task = await wm.composeVideo(
+  inputVideoPath: '/path/in.mp4',
+  text: '© watermark',
+  anchor: 'bottomRight',
+);
+task.progress.listen((p) => print('progress: $p'));
+final res = await task.done;
+print('Output: ${res.path} (${res.width}x${res.height})');
+```
+Notes:
+- Set `codec: 'hevc'` for HEVC when supported; default is H.264.
+- Audio is passed through on a best‑effort basis in this MVP.
+
 ## API Reference
 Method: `Future<Uint8List> composeImage({...})`
 
@@ -118,7 +134,7 @@ Returns: `Uint8List` — encoded output image.
 ## Limitations
 
 - iOS only in this version; Android is not implemented.
-- Video processing and SVG overlays are not implemented yet.
+- SVG overlays are not implemented yet.
 - Text is single-line in the current MVP (no wrapping).
 
 ## Example App

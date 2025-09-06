@@ -34,3 +34,4 @@ build/
 *.iml
 .DS_Store
 docs/
+.serena/
