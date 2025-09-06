@@ -37,6 +37,7 @@ abstract class WatermarkKitPlatform extends PlatformInterface {
   /// - opacity: 0..1 applied to watermark (default: 0.6)
   /// - format: 'jpeg' | 'png' (default: 'jpeg')
   /// - quality: 0..1 for JPEG (default: 0.9)
+  /// - offsetX/offsetY: pixel offsets from the anchored position (default: 0)
   Future<Uint8List> composeImage({
     required Uint8List inputImage,
     required Uint8List watermarkImage,
@@ -46,6 +47,8 @@ abstract class WatermarkKitPlatform extends PlatformInterface {
     double opacity = 0.6,
     String format = 'jpeg',
     double quality = 0.9,
+    double offsetX = 0.0,
+    double offsetY = 0.0,
   }) {
     throw UnimplementedError('composeImage() has not been implemented.');
   }

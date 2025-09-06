@@ -16,6 +16,8 @@ class WatermarkKit {
     double opacity = 0.6,
     String format = 'jpeg',
     double quality = 0.9,
+    double offsetX = 0.0,
+    double offsetY = 0.0,
   }) {
     return WatermarkKitPlatform.instance.composeImage(
       inputImage: inputImage,
@@ -26,6 +28,8 @@ class WatermarkKit {
       opacity: opacity,
       format: format,
       quality: quality,
+      offsetX: offsetX,
+      offsetY: offsetY,
     );
   }
 }

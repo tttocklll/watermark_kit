@@ -27,6 +27,8 @@ class MethodChannelWatermarkKit extends WatermarkKitPlatform {
     double opacity = 0.6,
     String format = 'jpeg',
     double quality = 0.9,
+    double offsetX = 0.0,
+    double offsetY = 0.0,
   }) async {
     pigeon.Anchor _anchorFromString(String s) {
       switch (s) {
@@ -64,6 +66,8 @@ class MethodChannelWatermarkKit extends WatermarkKitPlatform {
       opacity: opacity,
       format: _formatFromString(format),
       quality: quality,
+      offsetX: offsetX,
+      offsetY: offsetY,
     );
     try {
       final res = await api.composeImage(req);
@@ -79,6 +83,8 @@ class MethodChannelWatermarkKit extends WatermarkKitPlatform {
         'opacity': opacity,
         'format': format,
         'quality': quality,
+        'offsetX': offsetX,
+        'offsetY': offsetY,
       };
       final bytes = await methodChannel.invokeMethod<Uint8List>('composeImage', args);
       if (bytes == null) {

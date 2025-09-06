@@ -52,6 +52,8 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
     let opacity = (args["opacity"] as? NSNumber)?.doubleValue ?? 0.6
     let format = (args["format"] as? String) ?? "jpeg"
     let quality = min(max((args["quality"] as? NSNumber)?.doubleValue ?? 0.9, 0.0), 1.0)
+    let offsetX = (args["offsetX"] as? NSNumber)?.doubleValue ?? 0.0
+    let offsetY = (args["offsetY"] as? NSNumber)?.doubleValue ?? 0.0
     do {
       let (bytes, _, _) = try performCompose(
         baseData: baseData,
@@ -61,7 +63,9 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
         widthPercent: widthPercent,
         opacity: opacity,
         format: format,
-        quality: quality
+        quality: quality,
+        offsetX: offsetX,
+        offsetY: offsetY
       )
       result(FlutterStandardTypedData(bytes: bytes))
     } catch let err as ComposeError {
@@ -72,7 +76,7 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
   }
 
   // Shared composition used by MethodChannel and Pigeon
-  func performCompose(baseData: Data, wmData: Data, anchor: String, margin: Double, widthPercent: Double, opacity: Double, format: String, quality: Double) throws -> (Data, Int, Int) {
+  func performCompose(baseData: Data, wmData: Data, anchor: String, margin: Double, widthPercent: Double, opacity: Double, format: String, quality: Double, offsetX: Double, offsetY: Double) throws -> (Data, Int, Int) {
     guard let baseCI = Self.decodeCIImage(from: baseData),
           let wmCIOriginal = Self.decodeCIImage(from: wmData) else {
       throw ComposeError(code: "decode_failed", message: "Failed to decode input images")
@@ -97,7 +101,9 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
 
     // Compute position by anchor
     let wmRect = wmWithOpacity.extent
-    let pos = Self.positionRect(base: baseExtent, overlay: wmRect, anchor: anchor, margin: CGFloat(margin))
+    var pos = Self.positionRect(base: baseExtent, overlay: wmRect, anchor: anchor, margin: CGFloat(margin))
+    pos.x += CGFloat(offsetX)
+    pos.y += CGFloat(offsetY)
     let translated = wmWithOpacity.transformed(by: CGAffineTransform(translationX: floor(pos.x), y: floor(pos.y)))
 
     // Composite
