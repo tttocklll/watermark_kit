@@ -1,6 +1,6 @@
 # watermark_kit
 
-Lightweight image watermarking plugin for Flutter (iOS only). Composes a watermark image over a base image entirely in memory and returns encoded bytes. Built on Core Image with a Metal-backed context under the hood; no FFmpeg dependency.
+Lightweight image watermarking plugin for Flutter (iOS only). Composes an image or text watermark over a base image entirely in memory and returns encoded bytes. Built on Core Image with a Metal-backed context under the hood; no FFmpeg dependency.
 
 ## Platform Support
 
@@ -26,7 +26,7 @@ final wm = WatermarkKit();
 
 ## Quick Start
 
-Compose two in-memory images and get the result as bytes:
+Image watermark (PNG/JPEG bytes → bytes):
 
 ```
 final bytes = await wm.composeImage(
@@ -54,6 +54,24 @@ await file.writeAsBytes(bytes);
 
 See the runnable `example/` app for a simple UI and usage.
 
+Text watermark (text → bytes):
+
+```
+final textBytes = await wm.composeTextImage(
+  inputImage: baseBytes,
+  text: '© watermark kit',
+  anchor: 'bottomRight',
+  margin: 16.0,
+  widthPercent: 0.18,        // target text width = 18% of base width
+  opacity: 0.6,              // global alpha after raster
+  format: 'jpeg',            // or 'png'
+  fontFamily: '.SFUI',       // optional
+  fontSizePt: 24.0,          // used if widthPercent is not provided
+  fontWeight: 600,           // 100..900
+  colorArgb: 0xFFFFFFFF,     // ARGB32
+);
+```
+
 ## API Reference
 Method: `Future<Uint8List> composeImage({...})`
 
@@ -77,6 +95,19 @@ Returns:
 Errors:
 - Throws `PlatformException` with codes like `decode_failed`, `invalid_image`, `encode_failed`, `compose_failed` on native failures.
 
+Method: `Future<Uint8List> composeTextImage({...})`
+
+Parameters (in addition to placement/format options shared with `composeImage`):
+- `text` (String, required): Watermark text (single line in MVP).
+- `widthPercent` (double): Fit rendered text width to a fraction of base width (0..1). Default `0.18`.
+- `fontFamily` (String): System or custom registered font name. Default `.SFUI`.
+- `fontSizePt` (double): Point size if you prefer absolute sizing; ignored when `widthPercent` is provided.
+- `fontWeight` (int): 100..900; mapped to iOS font weights. Default 600 (semibold).
+- `colorArgb` (int): ARGB32 color; default white.
+- `opacity` (double): 0..1 applied to the rendered text alpha.
+
+Returns: `Uint8List` — encoded output image.
+
 ## Notes & Tips
 
 - Watermark scaling is based on the base image width: `outputWatermarkWidth = widthPercent * baseWidth`.
@@ -87,8 +118,8 @@ Errors:
 ## Limitations
 
 - iOS only in this version; Android is not implemented.
-- Image → Image composition only (no video, no text/SVG overlays yet).
-- Output formats: PNG or JPEG.
+- Video processing and SVG overlays are not implemented yet.
+- Text is single-line in the current MVP (no wrapping).
 
 ## Example App
 
