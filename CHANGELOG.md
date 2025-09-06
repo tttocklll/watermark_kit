@@ -1,3 +1,15 @@
+## 0.0.2
+
+Added
+- Text watermark support for images: new `WatermarkKit.composeTextImage(...)` API.
+  - Placement options mirror `composeImage` (anchor, margin, offset, units).
+  - Text style: `fontFamily`, `fontSizePt` (or `widthPercent` fit), `fontWeight`, `colorArgb`, `opacity`.
+- Pigeon host method `WatermarkApi.composeText` and Dart client wiring (MethodChannel fallback retained).
+- Example app: "Text Watermark" section and Compose Text action.
+
+Changed/Chore
+- README updated with text watermark usage and API reference.
+
 ## 0.0.1
 
 Initial release.
