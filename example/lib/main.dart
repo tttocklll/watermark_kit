@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:watermark_kit/watermark_kit.dart';
@@ -21,8 +22,20 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   String _platformVersion = 'Unknown';
-  Uint8List? _resultImage;
   final _watermarkKitPlugin = WatermarkKit();
+  final _picker = ImagePicker();
+
+  Uint8List? _baseImage;
+  Uint8List? _watermarkImage;
+  Uint8List? _resultImage;
+
+  String _anchor = 'bottomRight';
+  double _margin = 16.0;
+  double _widthPercent = 0.18;
+  double _opacity = 0.6;
+  String _format = 'png';
+  double _quality = 0.9;
+  bool _isComposing = false;
 
   @override
   void initState() {
@@ -57,62 +70,219 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Plugin example app'),
+          title: const Text('Watermark Kit Example'),
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Running on: $_platformVersion'),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _runCompose,
-                child: const Text('Compose Sample Image'),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: Center(
-                  child: _resultImage == null
-                      ? const Text('Tap the button to generate an image')
-                      : Image.memory(_resultImage!),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Running on: $_platformVersion'),
+                const SizedBox(height: 12),
+                _rowSelectImages(),
+                const SizedBox(height: 12),
+                _controls(),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: (_baseImage != null && _watermarkImage != null && !_isComposing)
+                      ? _compose
+                      : null,
+                  icon: const Icon(Icons.play_arrow),
+                  label: Text(_isComposing ? 'Composing...' : 'Compose'),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                _previewResult(),
+                const SizedBox(height: 24),
+                const Divider(),
+                const Text('Quick Demo (optional)'),
+                Row(
+                  children: [
+                    ElevatedButton(
+                      onPressed: _loadSampleBase,
+                      child: const Text('Use Sample Base'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _loadSampleWatermark,
+                      child: const Text('Use Sample Watermark'),
+                    ),
+                  ],
+                )
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Future<void> _runCompose() async {
-    // Generate a base image (600x400, gradient) and a watermark (logo-like) in memory.
-    final basePng = await _generateSampleBasePng(600, 400);
-    final wmPng = await _generateSampleWatermarkPng(256, 128);
+  Widget _rowSelectImages() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: _imageCard('Base Image', _baseImage, () => _pickImage(isBase: true))),
+        const SizedBox(width: 12),
+        Expanded(child: _imageCard('Watermark Image', _watermarkImage, () => _pickImage(isBase: false))),
+      ],
+    );
+  }
 
+  Widget _imageCard(String title, Uint8List? bytes, VoidCallback onPick) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            AspectRatio(
+              aspectRatio: 3 / 2,
+              child: Container(
+                color: Colors.grey.shade200,
+                child: bytes == null
+                    ? const Center(child: Text('No image selected'))
+                    : Image.memory(bytes, fit: BoxFit.contain),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: onPick,
+              icon: const Icon(Icons.photo_library),
+              label: const Text('Select from Library'),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _controls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text('Anchor: '),
+            const SizedBox(width: 8),
+            DropdownButton<String>(
+              value: _anchor,
+              items: const [
+                DropdownMenuItem(value: 'topLeft', child: Text('topLeft')),
+                DropdownMenuItem(value: 'topRight', child: Text('topRight')),
+                DropdownMenuItem(value: 'bottomLeft', child: Text('bottomLeft')),
+                DropdownMenuItem(value: 'bottomRight', child: Text('bottomRight')),
+                DropdownMenuItem(value: 'center', child: Text('center')),
+              ],
+              onChanged: (v) => setState(() => _anchor = v ?? _anchor),
+            ),
+            const SizedBox(width: 24),
+            const Text('Format: '),
+            const SizedBox(width: 8),
+            DropdownButton<String>(
+              value: _format,
+              items: const [
+                DropdownMenuItem(value: 'png', child: Text('png')),
+                DropdownMenuItem(value: 'jpeg', child: Text('jpeg')),
+              ],
+              onChanged: (v) => setState(() => _format = v ?? _format),
+            ),
+          ],
+        ),
+        _slider('Margin', _margin, 0, 64, (v) => setState(() => _margin = v), suffix: 'px'),
+        _slider('Width % of base', _widthPercent, 0.05, 0.8, (v) => setState(() => _widthPercent = v),
+            formatter: (v) => '${(v * 100).toStringAsFixed(0)}%'),
+        _slider('Opacity', _opacity, 0.0, 1.0, (v) => setState(() => _opacity = v), formatter: (v) => v.toStringAsFixed(2)),
+        if (_format == 'jpeg')
+          _slider('JPEG Quality', _quality, 0.2, 1.0, (v) => setState(() => _quality = v), formatter: (v) => v.toStringAsFixed(2)),
+      ],
+    );
+  }
+
+  Widget _slider(String label, double value, double min, double max, ValueChanged<double> onChanged, {String Function(double)? formatter, String suffix = ''}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(label),
+            const SizedBox(width: 8),
+            Text(formatter != null ? formatter(value) : '${value.toStringAsFixed(1)}$suffix'),
+          ],
+        ),
+        Slider(value: value, min: min, max: max, onChanged: onChanged),
+      ],
+    );
+  }
+
+  Widget _previewResult() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Result', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            AspectRatio(
+              aspectRatio: 3 / 2,
+              child: Container(
+                color: Colors.grey.shade100,
+                child: _resultImage == null ? const Center(child: Text('No result')) : Image.memory(_resultImage!, fit: BoxFit.contain),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage({required bool isBase}) async {
     try {
-      final composed = await _watermarkKitPlugin.composeImage(
-        inputImage: basePng,
-        watermarkImage: wmPng,
-        anchor: 'bottomRight',
-        margin: 24,
-        widthPercent: 0.35,
-        opacity: 0.85,
-        format: 'png',
-      );
-      setState(() => _resultImage = composed);
+      final xfile = await _picker.pickImage(source: ImageSource.gallery);
+      if (xfile == null) return;
+      final bytes = await xfile.readAsBytes();
+      setState(() {
+        if (isBase) {
+          _baseImage = bytes;
+        } else {
+          _watermarkImage = bytes;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Pick failed: $e')));
+    }
+  }
 
-      // Optionally write to temp dir for manual inspection
+  Future<void> _compose() async {
+    if (_baseImage == null || _watermarkImage == null) return;
+    setState(() => _isComposing = true);
+    try {
+      final bytes = await _watermarkKitPlugin.composeImage(
+        inputImage: _baseImage!,
+        watermarkImage: _watermarkImage!,
+        anchor: _anchor,
+        margin: _margin,
+        widthPercent: _widthPercent,
+        opacity: _opacity,
+        format: _format,
+        quality: _quality,
+      );
+      setState(() => _resultImage = bytes);
+
       final dir = await getTemporaryDirectory();
-      final out = File('${dir.path}/composed.png');
-      await out.writeAsBytes(composed);
+      final ext = _format == 'png' ? 'png' : 'jpg';
+      final out = File('${dir.path}/composed.$ext');
+      await out.writeAsBytes(bytes);
       // ignore: avoid_print
       print('Wrote: ${out.path}');
     } catch (e) {
-      // ignore: avoid_print
-      print('Compose failed: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Compose failed: $e')));
+    } finally {
+      if (mounted) setState(() => _isComposing = false);
     }
   }
 
@@ -160,5 +330,15 @@ class _MyAppState extends State<MyApp> {
       textDirection: TextDirection.ltr,
     );
     return tp;
+  }
+
+  Future<void> _loadSampleBase() async {
+    final basePng = await _generateSampleBasePng(800, 500);
+    setState(() => _baseImage = basePng);
+  }
+
+  Future<void> _loadSampleWatermark() async {
+    final wmPng = await _generateSampleWatermarkPng(300, 140);
+    setState(() => _watermarkImage = wmPng);
   }
 }

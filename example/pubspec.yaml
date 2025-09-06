@@ -17,6 +17,7 @@ dependencies:
   flutter:
     sdk: flutter
   path_provider: ^2.1.4
+  image_picker: ^1.1.2
 
   watermark_kit:
     # When depending on this package from a real application you should use:
