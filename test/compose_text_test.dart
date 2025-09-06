@@ -14,9 +14,10 @@ void main() {
 
     tearDown(() async {
       // Clean up any mock handlers.
-      ServicesBinding.instance.defaultBinaryMessenger
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMessageHandler(pigeonChannelName, null);
-      ServicesBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
         const MethodChannel('watermark_kit'),
         null,
       );
@@ -24,7 +25,7 @@ void main() {
 
     test('uses Pigeon channel when available', () async {
       final codec = pigeon.WatermarkApi.pigeonChannelCodec;
-      ServicesBinding.instance.defaultBinaryMessenger
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMessageHandler(pigeonChannelName, (ByteData? message) async {
         final List<Object?>? args = codec.decodeMessage(message) as List<Object?>?;
         expect(args, isNotNull);
@@ -55,7 +56,7 @@ void main() {
       // No Pigeon handler registered -> PlatformException thrown inside client.
       // Set up legacy MethodChannel handler.
       final chan = const MethodChannel('watermark_kit');
-      ServicesBinding.instance.defaultBinaryMessenger
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(chan, (MethodCall call) async {
         expect(call.method, 'composeText');
         final args = call.arguments as Map<Object?, Object?>;
@@ -76,4 +77,3 @@ void main() {
     });
   });
 }
-

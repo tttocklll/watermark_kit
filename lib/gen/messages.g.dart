@@ -47,9 +47,6 @@ enum Unit {
   percent,
 }
 
-class _Cfg {
-}
-
 class ComposeImageRequest {
   ComposeImageRequest({
     required this.baseImage,
@@ -427,23 +424,20 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is Unit) {
       buffer.putUint8(131);
       writeValue(buffer, value.index);
-    }    else if (value is _Cfg) {
+    }    else if (value is ComposeImageRequest) {
       buffer.putUint8(132);
       writeValue(buffer, value.encode());
-    }    else if (value is ComposeImageRequest) {
+    }    else if (value is ComposeImageResult) {
       buffer.putUint8(133);
       writeValue(buffer, value.encode());
-    }    else if (value is ComposeImageResult) {
+    }    else if (value is TextStyleDto) {
       buffer.putUint8(134);
       writeValue(buffer, value.encode());
-    }    else if (value is TextStyleDto) {
+    }    else if (value is WmStyleDto) {
       buffer.putUint8(135);
       writeValue(buffer, value.encode());
-    }    else if (value is WmStyleDto) {
-      buffer.putUint8(136);
-      writeValue(buffer, value.encode());
     }    else if (value is ComposeTextRequest) {
-      buffer.putUint8(137);
+      buffer.putUint8(136);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -463,16 +457,14 @@ class _PigeonCodec extends StandardMessageCodec {
         final int? value = readValue(buffer) as int?;
         return value == null ? null : Unit.values[value];
       case 132: 
-        return _Cfg.decode(readValue(buffer)!);
-      case 133: 
         return ComposeImageRequest.decode(readValue(buffer)!);
-      case 134: 
+      case 133: 
         return ComposeImageResult.decode(readValue(buffer)!);
-      case 135: 
+      case 134: 
         return TextStyleDto.decode(readValue(buffer)!);
-      case 136: 
+      case 135: 
         return WmStyleDto.decode(readValue(buffer)!);
-      case 137: 
+      case 136: 
         return ComposeTextRequest.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);

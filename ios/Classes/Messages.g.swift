@@ -147,27 +147,6 @@ enum Unit: Int {
 }
 
 /// Generated class from Pigeon that represents data sent in messages.
-struct _Cfg: Hashable {
-
-
-  // swift-format-ignore: AlwaysUseLowerCamelCase
-  static func fromList(_ pigeonVar_list: [Any?]) -> _Cfg? {
-
-    return _Cfg(
-    )
-  }
-  func toList() -> [Any?] {
-    return [
-    ]
-  }
-  static func == (lhs: _Cfg, rhs: _Cfg) -> Bool {
-    return deepEqualsMessages(lhs.toList(), rhs.toList())  }
-  func hash(into hasher: inout Hasher) {
-    deepHashMessages(value: toList(), hasher: &hasher)
-  }
-}
-
-/// Generated class from Pigeon that represents data sent in messages.
 struct ComposeImageRequest: Hashable {
   var baseImage: FlutterStandardTypedData
   var watermarkImage: FlutterStandardTypedData
@@ -438,16 +417,14 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
       }
       return nil
     case 132:
-      return _Cfg.fromList(self.readValue() as! [Any?])
-    case 133:
       return ComposeImageRequest.fromList(self.readValue() as! [Any?])
-    case 134:
+    case 133:
       return ComposeImageResult.fromList(self.readValue() as! [Any?])
-    case 135:
+    case 134:
       return TextStyleDto.fromList(self.readValue() as! [Any?])
-    case 136:
+    case 135:
       return WmStyleDto.fromList(self.readValue() as! [Any?])
-    case 137:
+    case 136:
       return ComposeTextRequest.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
@@ -466,23 +443,20 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? Unit {
       super.writeByte(131)
       super.writeValue(value.rawValue)
-    } else if let value = value as? _Cfg {
+    } else if let value = value as? ComposeImageRequest {
       super.writeByte(132)
       super.writeValue(value.toList())
-    } else if let value = value as? ComposeImageRequest {
+    } else if let value = value as? ComposeImageResult {
       super.writeByte(133)
       super.writeValue(value.toList())
-    } else if let value = value as? ComposeImageResult {
+    } else if let value = value as? TextStyleDto {
       super.writeByte(134)
       super.writeValue(value.toList())
-    } else if let value = value as? TextStyleDto {
+    } else if let value = value as? WmStyleDto {
       super.writeByte(135)
       super.writeValue(value.toList())
-    } else if let value = value as? WmStyleDto {
-      super.writeByte(136)
-      super.writeValue(value.toList())
     } else if let value = value as? ComposeTextRequest {
-      super.writeByte(137)
+      super.writeByte(136)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
