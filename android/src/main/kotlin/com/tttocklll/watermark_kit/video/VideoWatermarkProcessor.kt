@@ -126,7 +126,26 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
     } ?: -1
 
     // Decoder to Surface
-    val decoder = MediaCodec.createDecoderByType(vFmt.getString(MediaFormat.KEY_MIME)!!)
+    // Prepare decoder with fallback for Dolby Vision → HEVC when necessary
+    var inMime = vFmt.getString(MediaFormat.KEY_MIME) ?: "video/avc"
+    var decoderMime = inMime
+    if (!isDecoderAvailable(decoderMime)) {
+      if (decoderMime.contains("dolby-vision")) {
+        decoderMime = "video/hevc"
+        // try updating format mime for decoder
+        try { vFmt.setString(MediaFormat.KEY_MIME, decoderMime) } catch (_: Throwable) {}
+      }
+    }
+    val decoder = try {
+      MediaCodec.createDecoderByType(decoderMime)
+    } catch (t: Throwable) {
+      if (decoderMime != "video/avc" && isDecoderAvailable("video/avc")) {
+        try { vFmt.setString(MediaFormat.KEY_MIME, "video/avc") } catch (_: Throwable) {}
+        MediaCodec.createDecoderByType("video/avc")
+      } else {
+        throw t
+      }
+    }
     decoder.configure(vFmt, gl.getDecoderSurface(), null, 0)
     decoder.start()
 
@@ -322,6 +341,11 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
   private fun isCodecAvailable(mime: String): Boolean {
     val list = MediaCodecList(MediaCodecList.REGULAR_CODECS)
     return list.codecInfos.any { it.isEncoder && it.supportedTypes.contains(mime) }
+  }
+
+  private fun isDecoderAvailable(mime: String): Boolean {
+    val list = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+    return list.codecInfos.any { !it.isEncoder && it.supportedTypes.any { t -> t.equals(mime, ignoreCase = true) } }
   }
 
   private fun chooseEncodeSize(w: Int, h: Int, maxLongSide: Int?): Pair<Int, Int> {
