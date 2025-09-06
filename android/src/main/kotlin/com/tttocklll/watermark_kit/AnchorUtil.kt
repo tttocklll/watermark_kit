@@ -27,11 +27,12 @@ internal object AnchorUtil {
     val dy = if (offsetUnit == MeasureUnit.PERCENT) (offsetY * bh).toFloat() else offsetY.toFloat()
 
     val p = when (anchor) {
-      Anchor.TOP_LEFT -> PointF(mx, bh - my - oh)
-      Anchor.TOP_RIGHT -> PointF(bw - mx - ow, bh - my - oh)
-      Anchor.BOTTOM_LEFT -> PointF(mx, my)
+      // Android Canvas is top-left origin (y grows down)
+      Anchor.TOP_LEFT -> PointF(mx, my)
+      Anchor.TOP_RIGHT -> PointF(bw - mx - ow, my)
+      Anchor.BOTTOM_LEFT -> PointF(mx, bh - my - oh)
       Anchor.CENTER -> PointF(bw * 0.5f - ow * 0.5f, bh * 0.5f - oh * 0.5f)
-      Anchor.BOTTOM_RIGHT -> PointF(bw - mx - ow, my)
+      Anchor.BOTTOM_RIGHT -> PointF(bw - mx - ow, bh - my - oh)
     }
     p.x = kotlin.math.floor(p.x + dx)
     p.y = kotlin.math.floor(p.y + dy)

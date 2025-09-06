@@ -10,7 +10,7 @@ PODS:
   - video_player_avfoundation (0.0.1):
     - Flutter
     - FlutterMacOS
-  - watermark_kit (0.0.1):
+  - watermark_kit (1.0.0):
     - Flutter
 
 DEPENDENCIES:
@@ -41,7 +41,7 @@ SPEC CHECKSUMS:
   integration_test: 252f60fa39af5e17c3aa9899d35d908a0721b573
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
   video_player_avfoundation: 7c6c11d8470e1675df7397027218274b6d2360b3
-  watermark_kit: b94c4334d8a14e2ab1afeaceafcc4667b5147980
+  watermark_kit: 159522e3770436d91dabf8281eb0cf1fd0582887
 
 PODFILE CHECKSUM: 4305caec6b40dde0ae97be1573c53de1882a07e5
 
