@@ -2,11 +2,14 @@ package com.tttocklll.watermark_kit
 
 import android.content.Context
 import io.flutter.plugin.common.BinaryMessenger
+import com.tttocklll.watermark_kit.video.VideoWatermarkProcessor
 
 internal class WatermarkApiImpl(
   private val context: Context,
   private val messenger: BinaryMessenger,
 ) : WatermarkApi {
+
+  private val video = VideoWatermarkProcessor(context)
 
   override fun composeImage(request: ComposeImageRequest, callback: (Result<ComposeImageResult>) -> Unit) {
     try {
@@ -61,12 +64,17 @@ internal class WatermarkApiImpl(
   }
 
   override fun composeVideo(request: ComposeVideoRequest, callback: (Result<ComposeVideoResult>) -> Unit) {
-    // Not yet implemented on Android. Provide a clear error.
-    callback(Result.failure(FlutterError("unimplemented", "Android video watermarking is not implemented yet.", null)))
+    val cb = WatermarkCallbacks(messenger)
+    video.start(
+      request = request,
+      callbacks = cb,
+      onCompleted = { res -> callback(Result.success(res)) },
+      onError = { code, msg -> callback(Result.failure(FlutterError(code, msg, null))) }
+    )
   }
 
   override fun cancel(taskId: String) {
-    // No-op until video pipeline is implemented.
+    video.cancel(taskId)
   }
 
   private fun guessBaseWidth(baseImageBytes: ByteArray): Double {
