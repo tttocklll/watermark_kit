@@ -1,15 +1,23 @@
 # watermark_kit
 
-A new Flutter plugin project.
+Image watermarking plugin for Flutter (iOS MVP). The MVP composes a watermark image over a base image and returns the encoded result. Video and text/SVG overlays are out of scope for the first milestone.
 
-## Getting Started
+## API (MVP)
 
-This project is a starting point for a Flutter
-[plug-in package](https://flutter.dev/to/develop-plugins),
-a specialized package that includes platform-specific implementation code for
-Android and/or iOS.
+```
+final wm = WatermarkKit();
+final bytes = await wm.composeImage(
+  inputImage: basePngBytes,
+  watermarkImage: wmPngBytes,
+  anchor: 'bottomRight',
+  margin: 16,
+  widthPercent: 0.18,
+  opacity: 0.6,
+  format: 'jpeg', // or 'png'
+  quality: 0.9,
+);
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Anchors: `topLeft`, `topRight`, `bottomLeft`, `bottomRight`, `center`.
 
+See `example/` for a runnable demo that generates images at runtime.
