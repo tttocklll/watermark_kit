@@ -46,6 +46,9 @@ flutter:
     platforms:
       ios:
         pluginClass: WatermarkKitPlugin
+      android:
+        package: com.tttocklll.watermark_kit
+        pluginClass: WatermarkKitPlugin
 
   # To add assets to your plugin package, add an assets section, like this:
   # assets:
