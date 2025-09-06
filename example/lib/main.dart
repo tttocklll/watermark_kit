@@ -28,6 +28,7 @@ class _MyAppState extends State<MyApp> {
   Uint8List? _baseImage;
   Uint8List? _watermarkImage;
   Uint8List? _resultImage;
+  String _text = '© Watermark Kit';
 
   String _anchor = 'bottomRight';
   double _margin = 16.0;
@@ -92,6 +93,16 @@ class _MyAppState extends State<MyApp> {
                       : null,
                   icon: const Icon(Icons.play_arrow),
                   label: Text(_isComposing ? 'Composing...' : 'Compose'),
+                ),
+                const SizedBox(height: 8),
+                _textControls(),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: (_baseImage != null && !_isComposing)
+                      ? _composeText
+                      : null,
+                  icon: const Icon(Icons.text_fields),
+                  label: Text(_isComposing ? 'Composing...' : 'Compose Text'),
                 ),
                 const SizedBox(height: 12),
                 _previewResult(),
@@ -204,6 +215,21 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
+  Widget _textControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Text Watermark', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        TextField(
+          decoration: const InputDecoration(labelText: 'Text'),
+          controller: TextEditingController(text: _text),
+          onChanged: (v) => _text = v,
+        ),
+      ],
+    );
+  }
+
   Widget _slider(String label, double value, double min, double max, ValueChanged<double> onChanged, {String Function(double)? formatter, String suffix = ''}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,6 +313,38 @@ class _MyAppState extends State<MyApp> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Compose failed: $e')));
+    } finally {
+      if (mounted) setState(() => _isComposing = false);
+    }
+  }
+
+  Future<void> _composeText() async {
+    if (_baseImage == null) return;
+    setState(() => _isComposing = true);
+    try {
+      final bytes = await _watermarkKitPlugin.composeTextImage(
+        inputImage: _baseImage!,
+        text: _text,
+        anchor: _anchor,
+        margin: _margin,
+        widthPercent: _widthPercent,
+        opacity: _opacity,
+        format: _format,
+        quality: _quality,
+        offsetX: _offsetX,
+        offsetY: _offsetY,
+      );
+      setState(() => _resultImage = bytes);
+
+      final dir = await getTemporaryDirectory();
+      final ext = _format == 'png' ? 'png' : 'jpg';
+      final out = File('${dir.path}/composed_text.$ext');
+      await out.writeAsBytes(bytes);
+      // ignore: avoid_print
+      print('Wrote: ${out.path}');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Compose text failed: $e')));
     } finally {
       if (mounted) setState(() => _isComposing = false);
     }
