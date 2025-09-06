@@ -61,8 +61,72 @@ class ComposeImageResult {
   int height;
 }
 
+// --- Text watermark (MVP extension) ---
+
+class TextStyleDto {
+  TextStyleDto({
+    this.fontFamily = '.SFUI',
+    this.fontSizePt = 24.0,
+    this.fontWeight = 600,
+    this.colorArgb = 0xFFFFFFFF,
+  });
+  String fontFamily;
+  double fontSizePt;
+  int fontWeight; // 100..900
+  int colorArgb;  // ARGB32
+}
+
+class WmStyleDto {
+  WmStyleDto({
+    this.opacity = 0.6,
+    this.stroke = false,
+    this.strokeWidth = 1.0,
+    this.shadowBlur = 0.0,
+  });
+  double opacity;     // 0..1
+  bool stroke;
+  double strokeWidth; // px
+  double shadowBlur;  // px
+}
+
+class ComposeTextRequest {
+  ComposeTextRequest({
+    required this.baseImage,
+    required this.text,
+    this.anchor = Anchor.bottomRight,
+    this.margin = 16.0,
+    this.marginUnit = Unit.px,
+    this.offsetX = 0.0,
+    this.offsetY = 0.0,
+    this.offsetUnit = Unit.px,
+    this.widthPercent = 0.18,
+    required this.textStyle,
+    required this.style,
+    this.format = OutputFormat.jpeg,
+    this.quality = 0.9,
+  });
+
+  Uint8List baseImage;
+  String text;
+  Anchor anchor;
+  double margin;
+  Unit marginUnit;
+  double offsetX;
+  double offsetY;
+  Unit offsetUnit;
+  double widthPercent; // if 0, use textStyle.fontSizePt (not used in MVP path)
+  TextStyleDto textStyle;
+  WmStyleDto style;
+  OutputFormat format;
+  double quality;
+}
+
 @HostApi()
 abstract class WatermarkApi {
   @async
   ComposeImageResult composeImage(ComposeImageRequest request);
+
+  // New in text watermark MVP. Implemented later via codegen; keep MethodChannel fallback too.
+  @async
+  ComposeImageResult composeText(ComposeTextRequest request);
 }
