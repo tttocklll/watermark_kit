@@ -1,6 +1,7 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'watermark_kit_method_channel.dart';
+import 'dart:typed_data';
 
 abstract class WatermarkKitPlatform extends PlatformInterface {
   /// Constructs a WatermarkKitPlatform.
@@ -25,5 +26,27 @@ abstract class WatermarkKitPlatform extends PlatformInterface {
 
   Future<String?> getPlatformVersion() {
     throw UnimplementedError('platformVersion() has not been implemented.');
+  }
+
+  /// Composes [inputImage] with [watermarkImage] and returns encoded bytes.
+  ///
+  /// Options (all optional with defaults):
+  /// - anchor: one of 'topLeft','topRight','bottomLeft','bottomRight','center' (default: 'bottomRight')
+  /// - margin: logical pixels in output space (default: 16.0)
+  /// - widthPercent: 0..1 relative to base width (default: 0.18)
+  /// - opacity: 0..1 applied to watermark (default: 0.6)
+  /// - format: 'jpeg' | 'png' (default: 'jpeg')
+  /// - quality: 0..1 for JPEG (default: 0.9)
+  Future<Uint8List> composeImage({
+    required Uint8List inputImage,
+    required Uint8List watermarkImage,
+    String anchor = 'bottomRight',
+    double margin = 16.0,
+    double widthPercent = 0.18,
+    double opacity = 0.6,
+    String format = 'jpeg',
+    double quality = 0.9,
+  }) {
+    throw UnimplementedError('composeImage() has not been implemented.');
   }
 }
