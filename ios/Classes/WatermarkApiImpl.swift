@@ -35,7 +35,9 @@ final class WatermarkApiImpl: WatermarkApi {
         format: formatStr,
         quality: request.quality,
         offsetX: request.offsetX,
-        offsetY: request.offsetY
+        offsetY: request.offsetY,
+        marginUnit: (request.marginUnit == .percent ? "percent" : "px"),
+        offsetUnit: (request.offsetUnit == .percent ? "percent" : "px")
       )
       let res = ComposeImageResult(imageBytes: FlutterStandardTypedData(bytes: bytes), width: Int64(w), height: Int64(h))
       completion(.success(res))

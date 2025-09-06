@@ -54,6 +54,8 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
     let quality = min(max((args["quality"] as? NSNumber)?.doubleValue ?? 0.9, 0.0), 1.0)
     let offsetX = (args["offsetX"] as? NSNumber)?.doubleValue ?? 0.0
     let offsetY = (args["offsetY"] as? NSNumber)?.doubleValue ?? 0.0
+    let marginUnit = (args["marginUnit"] as? String) ?? "px"
+    let offsetUnit = (args["offsetUnit"] as? String) ?? "px"
     do {
       let (bytes, _, _) = try performCompose(
         baseData: baseData,
@@ -65,7 +67,9 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
         format: format,
         quality: quality,
         offsetX: offsetX,
-        offsetY: offsetY
+        offsetY: offsetY,
+        marginUnit: marginUnit,
+        offsetUnit: offsetUnit
       )
       result(FlutterStandardTypedData(bytes: bytes))
     } catch let err as ComposeError {
@@ -76,7 +80,7 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
   }
 
   // Shared composition used by MethodChannel and Pigeon
-  func performCompose(baseData: Data, wmData: Data, anchor: String, margin: Double, widthPercent: Double, opacity: Double, format: String, quality: Double, offsetX: Double, offsetY: Double) throws -> (Data, Int, Int) {
+  func performCompose(baseData: Data, wmData: Data, anchor: String, margin: Double, widthPercent: Double, opacity: Double, format: String, quality: Double, offsetX: Double, offsetY: Double, marginUnit: String = "px", offsetUnit: String = "px") throws -> (Data, Int, Int) {
     guard let baseCI = Self.decodeCIImage(from: baseData),
           let wmCIOriginal = Self.decodeCIImage(from: wmData) else {
       throw ComposeError(code: "decode_failed", message: "Failed to decode input images")
@@ -99,11 +103,15 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
     let alphaVec = CIVector(x: 0, y: 0, z: 0, w: CGFloat(opacity))
     let wmWithOpacity = scaled.applyingFilter("CIColorMatrix", parameters: ["inputAVector": alphaVec])
 
-    // Compute position by anchor
+    // Compute position by anchor with units
     let wmRect = wmWithOpacity.extent
-    var pos = Self.positionRect(base: baseExtent, overlay: wmRect, anchor: anchor, margin: CGFloat(margin))
-    pos.x += CGFloat(offsetX)
-    pos.y += CGFloat(offsetY)
+    let marginX = (marginUnit == "percent") ? CGFloat(margin) * baseW : CGFloat(margin)
+    let marginY = (marginUnit == "percent") ? CGFloat(margin) * baseH : CGFloat(margin)
+    var pos = Self.positionRect(base: baseExtent, overlay: wmRect, anchor: anchor, marginX: marginX, marginY: marginY)
+    let dx = (offsetUnit == "percent") ? CGFloat(offsetX) * baseW : CGFloat(offsetX)
+    let dy = (offsetUnit == "percent") ? CGFloat(offsetY) * baseH : CGFloat(offsetY)
+    pos.x += dx
+    pos.y += dy
     let translated = wmWithOpacity.transformed(by: CGAffineTransform(translationX: floor(pos.x), y: floor(pos.y)))
 
     // Composite
@@ -161,20 +169,20 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
     return data as Data
   }
 
-  private static func positionRect(base: CGRect, overlay: CGRect, anchor: String, margin: CGFloat) -> CGPoint {
+  private static func positionRect(base: CGRect, overlay: CGRect, anchor: String, marginX: CGFloat, marginY: CGFloat) -> CGPoint {
     let w = overlay.width
     let h = overlay.height
     switch anchor {
     case "topLeft":
-      return CGPoint(x: base.minX + margin, y: base.maxY - margin - h)
+      return CGPoint(x: base.minX + marginX, y: base.maxY - marginY - h)
     case "topRight":
-      return CGPoint(x: base.maxX - margin - w, y: base.maxY - margin - h)
+      return CGPoint(x: base.maxX - marginX - w, y: base.maxY - marginY - h)
     case "bottomLeft":
-      return CGPoint(x: base.minX + margin, y: base.minY + margin)
+      return CGPoint(x: base.minX + marginX, y: base.minY + marginY)
     case "center":
       return CGPoint(x: base.midX - w * 0.5, y: base.midY - h * 0.5)
     default: // bottomRight
-      return CGPoint(x: base.maxX - margin - w, y: base.minY + margin)
+      return CGPoint(x: base.maxX - marginX - w, y: base.minY + marginY)
     }
   }
 }
