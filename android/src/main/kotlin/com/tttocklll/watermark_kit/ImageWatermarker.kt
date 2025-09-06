@@ -11,10 +11,10 @@ internal object ImageWatermarker {
     wmBytes: ByteArray,
     anchor: Anchor,
     margin: Double,
-    marginUnit: Unit,
+    marginUnit: MeasureUnit,
     offsetX: Double,
     offsetY: Double,
-    offsetUnit: Unit,
+    offsetUnit: MeasureUnit,
     widthPercent: Double,
     opacity: Double,
     format: OutputFormat,
@@ -65,4 +65,3 @@ internal object ImageWatermarker {
     return Result(bos.toByteArray(), base.width, base.height)
   }
 }
-

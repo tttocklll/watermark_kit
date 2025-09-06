@@ -106,12 +106,12 @@ enum class OutputFormat(val raw: Int) {
   }
 }
 
-enum class Unit(val raw: Int) {
+enum class MeasureUnit(val raw: Int) {
   PX(0),
   PERCENT(1);
 
   companion object {
-    fun ofRaw(raw: Int): Unit? {
+    fun ofRaw(raw: Int): MeasureUnit? {
       return values().firstOrNull { it.raw == raw }
     }
   }
@@ -140,8 +140,8 @@ data class ComposeImageRequest (
   val quality: Double,
   val offsetX: Double,
   val offsetY: Double,
-  val marginUnit: Unit,
-  val offsetUnit: Unit
+  val marginUnit: MeasureUnit,
+  val offsetUnit: MeasureUnit
 )
  {
   companion object {
@@ -156,8 +156,8 @@ data class ComposeImageRequest (
       val quality = pigeonVar_list[7] as Double
       val offsetX = pigeonVar_list[8] as Double
       val offsetY = pigeonVar_list[9] as Double
-      val marginUnit = pigeonVar_list[10] as Unit
-      val offsetUnit = pigeonVar_list[11] as Unit
+      val marginUnit = pigeonVar_list[10] as MeasureUnit
+      val offsetUnit = pigeonVar_list[11] as MeasureUnit
       return ComposeImageRequest(baseImage, watermarkImage, anchor, margin, widthPercent, opacity, format, quality, offsetX, offsetY, marginUnit, offsetUnit)
     }
   }
@@ -303,10 +303,10 @@ data class ComposeTextRequest (
   val text: String,
   val anchor: Anchor,
   val margin: Double,
-  val marginUnit: Unit,
+  val marginUnit: MeasureUnit,
   val offsetX: Double,
   val offsetY: Double,
-  val offsetUnit: Unit,
+  val offsetUnit: MeasureUnit,
   val widthPercent: Double,
   val textStyle: TextStyleDto,
   val style: WmStyleDto,
@@ -320,10 +320,10 @@ data class ComposeTextRequest (
       val text = pigeonVar_list[1] as String
       val anchor = pigeonVar_list[2] as Anchor
       val margin = pigeonVar_list[3] as Double
-      val marginUnit = pigeonVar_list[4] as Unit
+      val marginUnit = pigeonVar_list[4] as MeasureUnit
       val offsetX = pigeonVar_list[5] as Double
       val offsetY = pigeonVar_list[6] as Double
-      val offsetUnit = pigeonVar_list[7] as Unit
+      val offsetUnit = pigeonVar_list[7] as MeasureUnit
       val widthPercent = pigeonVar_list[8] as Double
       val textStyle = pigeonVar_list[9] as TextStyleDto
       val style = pigeonVar_list[10] as WmStyleDto
@@ -370,10 +370,10 @@ data class ComposeVideoRequest (
   val text: String? = null,
   val anchor: Anchor,
   val margin: Double,
-  val marginUnit: Unit,
+  val marginUnit: MeasureUnit,
   val offsetX: Double,
   val offsetY: Double,
-  val offsetUnit: Unit,
+  val offsetUnit: MeasureUnit,
   val widthPercent: Double,
   val opacity: Double,
   val codec: VideoCodec,
@@ -391,10 +391,10 @@ data class ComposeVideoRequest (
       val text = pigeonVar_list[4] as String?
       val anchor = pigeonVar_list[5] as Anchor
       val margin = pigeonVar_list[6] as Double
-      val marginUnit = pigeonVar_list[7] as Unit
+      val marginUnit = pigeonVar_list[7] as MeasureUnit
       val offsetX = pigeonVar_list[8] as Double
       val offsetY = pigeonVar_list[9] as Double
-      val offsetUnit = pigeonVar_list[10] as Unit
+      val offsetUnit = pigeonVar_list[10] as MeasureUnit
       val widthPercent = pigeonVar_list[11] as Double
       val opacity = pigeonVar_list[12] as Double
       val codec = pigeonVar_list[13] as VideoCodec
@@ -494,7 +494,7 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
       }
       131.toByte() -> {
         return (readValue(buffer) as Long?)?.let {
-          Unit.ofRaw(it.toInt())
+          MeasureUnit.ofRaw(it.toInt())
         }
       }
       132.toByte() -> {
@@ -550,7 +550,7 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
         stream.write(130)
         writeValue(stream, value.raw)
       }
-      is Unit -> {
+      is MeasureUnit -> {
         stream.write(131)
         writeValue(stream, value.raw)
       }

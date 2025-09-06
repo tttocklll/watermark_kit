@@ -33,7 +33,7 @@ void main() {
         expect(req.text, 'hello');
         expect(req.anchor, pigeon.Anchor.bottomRight);
         expect(req.margin, 16.0);
-        expect(req.marginUnit, pigeon.Unit.px);
+        expect(req.marginUnit, pigeon.MeasureUnit.px);
         expect(req.widthPercent, closeTo(0.18, 1e-9));
         // Return a small valid response
         final res = pigeon.ComposeImageResult(

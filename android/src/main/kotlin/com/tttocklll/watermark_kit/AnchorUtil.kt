@@ -10,21 +10,21 @@ internal object AnchorUtil {
     overlayH: Int,
     anchor: Anchor,
     margin: Double,
-    marginUnit: Unit,
+    marginUnit: MeasureUnit,
     offsetX: Double,
     offsetY: Double,
-    offsetUnit: Unit,
+    offsetUnit: MeasureUnit,
   ): PointF {
     val bw = baseW.toFloat()
     val bh = baseH.toFloat()
     val ow = overlayW.toFloat()
     val oh = overlayH.toFloat()
 
-    val mx = if (marginUnit == Unit.PERCENT) (margin * bw).toFloat() else margin.toFloat()
-    val my = if (marginUnit == Unit.PERCENT) (margin * bh).toFloat() else margin.toFloat()
+    val mx = if (marginUnit == MeasureUnit.PERCENT) (margin * bw).toFloat() else margin.toFloat()
+    val my = if (marginUnit == MeasureUnit.PERCENT) (margin * bh).toFloat() else margin.toFloat()
 
-    val dx = if (offsetUnit == Unit.PERCENT) (offsetX * bw).toFloat() else offsetX.toFloat()
-    val dy = if (offsetUnit == Unit.PERCENT) (offsetY * bh).toFloat() else offsetY.toFloat()
+    val dx = if (offsetUnit == MeasureUnit.PERCENT) (offsetX * bw).toFloat() else offsetX.toFloat()
+    val dy = if (offsetUnit == MeasureUnit.PERCENT) (offsetY * bh).toFloat() else offsetY.toFloat()
 
     val p = when (anchor) {
       Anchor.TOP_LEFT -> PointF(mx, bh - my - oh)
@@ -38,4 +38,3 @@ internal object AnchorUtil {
     return p
   }
 }
-

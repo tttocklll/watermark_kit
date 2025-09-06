@@ -77,4 +77,3 @@ internal class WatermarkApiImpl(
     return (opts.outWidth.takeIf { it > 0 } ?: 1024).toDouble()
   }
 }
-

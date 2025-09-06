@@ -1,6 +1,7 @@
 package com.tttocklll.watermark_kit
 
 import android.graphics.*
+import android.text.TextPaint
 import java.io.ByteArrayOutputStream
 
 internal object TextRasterizer {
@@ -18,7 +19,10 @@ internal object TextRasterizer {
     paint.color = argbToColorInt(colorArgb)
     paint.isSubpixelText = true
     paint.textAlign = Paint.Align.LEFT
-    paint.typeface = Typeface.create(fontFamily.ifEmpty { Typeface.SANS_SERIF.toString() }, mapWeight(fontWeight))
+    paint.typeface = Typeface.create(
+      fontFamily.ifEmpty { Typeface.SANS_SERIF.toString() },
+      mapWeight(fontWeight)
+    )
 
     // Initial guess for size then scale to fit target width.
     paint.textSize = 48f
@@ -52,18 +56,5 @@ internal object TextRasterizer {
     return Color.argb(a, r, g, b)
   }
 
-  private fun mapWeight(w: Int): Int {
-    return when {
-      w < 200 -> Typeface.EXTRA_LIGHT
-      w < 300 -> Typeface.THIN
-      w < 400 -> Typeface.LIGHT
-      w < 500 -> Typeface.NORMAL
-      w < 600 -> Typeface.MEDIUM
-      w < 700 -> Typeface.BOLD
-      w < 800 -> Typeface.BOLD
-      w < 900 -> Typeface.BLACK
-      else -> Typeface.BLACK
-    }
-  }
+  private fun mapWeight(w: Int): Int = if (w >= 700) Typeface.BOLD else Typeface.NORMAL
 }
-
