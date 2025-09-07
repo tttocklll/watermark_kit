@@ -1,6 +1,6 @@
 name: watermark_kit
-description: "High-performance iOS watermarking plugin for Flutter. Compose text or image watermarks over images and videos using Core Image + Metal (no FFmpeg)."
-version: 1.0.0
+description: "Fast watermarking for Flutter (iOS + Android). Image/text overlays for images and videos without FFmpeg (Core Image/AVFoundation on iOS; MediaCodec + GLES on Android)."
+version: 2.0.0
 homepage: https://github.com/tttocklll/watermark_kit
 repository: https://github.com/tttocklll/watermark_kit
 issue_tracker: https://github.com/tttocklll/watermark_kit/issues
@@ -26,6 +26,7 @@ topics:
   - image
   - video
   - ios
+  - android
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

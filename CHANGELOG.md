@@ -1,3 +1,23 @@
+## 2.0.0
+
+Added
+- Android support for image, text, and video watermarking (API 24+).
+  - Hardware Surface pipeline with automatic fallback to ByteBuffer YUV + GLES when needed.
+  - Progress callbacks and cancellation, matching iOS.
+  - Audio passthrough (best effort).
+
+Fixed
+- Android: prevent video tasks from hanging at 100% by properly propagating decoder EOS to the encoder.
+- Android: corrected overlay vertical flip (image/text) so placement is upright while keeping coordinates unchanged.
+
+Changed
+- README updated for cross‑platform support; removed iOS‑only notes.
+- Default logs reduced; added `WMLog` gate for verbose debugging on Android.
+
+Notes
+- Default codec is H.264; HEVC is used when supported. Some devices/emulators may not support HEVC/Dolby Vision.
+- Minimum Android SDK is 24.
+
 ## 1.0.0
 
 Added

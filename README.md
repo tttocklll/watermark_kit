@@ -1,11 +1,11 @@
 # watermark_kit
 
-Lightweight image watermarking plugin for Flutter (iOS only). Composes an image or text watermark over a base image entirely in memory and returns encoded bytes. Built on Core Image with a Metal-backed context under the hood; no FFmpeg dependency.
+Lightweight, fast watermarking plugin for Flutter (iOS + Android). Compose image or text watermarks over images and videos, with a simple cross‑platform API and no FFmpeg dependency. Under the hood: iOS uses Core Image + AVFoundation; Android uses MediaCodec + OpenGL ES.
 
 ## Platform Support
 
-- iOS: images, text, and video watermarking
-- Android: images and text supported; video not yet implemented
+- iOS: images, text, video
+- Android: images, text, video (API 24+)
 
 ## Install
 
@@ -13,7 +13,7 @@ In your app's `pubspec.yaml`:
 
 ```
 dependencies:
-  watermark_kit: ^1.0.0
+  watermark_kit: ^2.0.0
 ```
 
 Import and create the API:
@@ -127,10 +127,10 @@ Options (quick reference):
 - `codec` ('h264'|'hevc'): default 'h264'.
 
 Notes:
-- Set `codec: 'hevc'` for HEVC when supported; default is H.264.
+- Default codec is H.264; set `codec: 'hevc'` when supported by the device.
 - Audio is passed through on a best‑effort basis.
-- Rotation is respected via the track `preferredTransform` (anchors apply to the displayed orientation).
-- See the example app’s “Video” tab for a complete, working UI.
+- Anchors apply to the displayed orientation (rotation is handled internally on both iOS and Android).
+- See the example app’s “Video” tab for end‑to‑end usage.
 
 ## API Reference
 Method: `Future<Uint8List> composeImage({...})`
@@ -172,14 +172,14 @@ Returns: `Uint8List` — encoded output image.
 
 - Watermark scaling is based on the base image width: `outputWatermarkWidth = widthPercent * baseWidth`.
 - Alpha is preserved for PNG watermark images.
-- The plugin works fully in memory and does not require Photos permissions. Any permissions you see in `example/` are only for picking/saving images.
+- The plugin itself does not request platform permissions. Your app is responsible for any file/media permissions needed to read input or write the output file (e.g., READ_MEDIA_VIDEO on Android 13+ if accessing shared storage).
  
 
 ## Limitations
 
-- iOS only in this version; Android is not implemented.
 - SVG overlays are not implemented yet.
 - Text is single-line in the current MVP (no wrapping).
+- Android HEVC and Dolby Vision availability varies by device; the example falls back to software decode when needed.
 
 ## Example App
 
@@ -187,7 +187,7 @@ Returns: `Uint8List` — encoded output image.
 
 ## Development
 
-This plugin uses Pigeon for a type-safe platform bridge. Generated files live under `lib/gen/` (Dart) and `ios/Classes/` (Swift). When changing the schema in `pigeons/messages.dart`, re-generate via:
+This plugin uses Pigeon for a type-safe platform bridge. Generated files live under `lib/gen/` (Dart), `ios/Classes/` (Swift), and `android/src/main/kotlin/...` (Kotlin). When changing the schema in `pigeons/messages.dart`, re‑generate via:
 
 ```
 dart run pigeon --input pigeons/messages.dart

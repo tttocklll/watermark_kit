@@ -535,7 +535,7 @@ class _VideoTabState extends State<_VideoTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Video (iOS only)'),
+            const Text('Video'),
             const SizedBox(height: 8),
             Row(children: [
               ElevatedButton(onPressed: _pickVideo, child: const Text('Pick Video')),
