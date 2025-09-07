@@ -329,11 +329,13 @@ internal class GlRenderer {
     val y0 = 1f - 2f * (yPx / vh) - 2f * (hPx / vh)
     val x1 = 2f * ((xPx + wPx) / vw) - 1f
     val y1 = y0 + 2f * (hPx / vh)
+    // Note: Android Bitmap origin is top-left, while OpenGL ES texture coords (0,0) are bottom-left.
+    // Flip V to keep the bitmap/text upright on screen.
     return floatArrayOf(
-      x0, y0, 0f, 0f,
-      x1, y0, 1f, 0f,
-      x0, y1, 0f, 1f,
-      x1, y1, 1f, 1f,
+      x0, y0, 0f, 1f,  // bottom-left -> (u=0,v=1)
+      x1, y0, 1f, 1f,  // bottom-right -> (1,1)
+      x0, y1, 0f, 0f,  // top-left -> (0,0)
+      x1, y1, 1f, 0f,  // top-right -> (1,0)
     )
   }
 }
