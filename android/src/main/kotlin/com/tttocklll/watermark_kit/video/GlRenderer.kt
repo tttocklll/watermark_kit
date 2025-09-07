@@ -16,6 +16,8 @@ internal class GlRenderer {
 
   private lateinit var progOes: ShaderPrograms.Program
   private lateinit var prog2d: ShaderPrograms.Program
+  private var progYuv: ShaderPrograms.Program? = null
+  private var yuvTexIds: IntArray? = null
 
   private val identity = FloatArray(16).apply { Matrix.setIdentityM(this, 0) }
 
@@ -81,10 +83,15 @@ internal class GlRenderer {
     makeCurrent()
     progOes = ShaderPrograms.buildExternalOes()
     prog2d = ShaderPrograms.buildTexture2D()
+    progYuv = ShaderPrograms.buildYuv()
     oesTexId = genExternalTexture()
     surfaceTexture = SurfaceTexture(oesTexId)
     surfaceTexture!!.setDefaultBufferSize(16, 16)
     surface = Surface(surfaceTexture)
+  }
+
+  fun setDecoderDefaultBufferSize(width: Int, height: Int) {
+    surfaceTexture?.setDefaultBufferSize(width, height)
   }
 
   fun makeCurrent() {
@@ -118,6 +125,98 @@ internal class GlRenderer {
     GLES20.glUseProgram(progOes.id)
     val verts = createFullscreenQuad(rotationDeg)
     drawQuad(progOes, verts, stMatrix, oes = true, opacity = 1f)
+  }
+
+  fun drawYuvFrame(
+    y: java.nio.ByteBuffer,
+    u: java.nio.ByteBuffer,
+    v: java.nio.ByteBuffer,
+    yStride: Int,
+    uStride: Int,
+    vStride: Int,
+    width: Int,
+    height: Int,
+    rotationDeg: Int,
+    viewW: Int,
+    viewH: Int
+  ) {
+    ensureYuvTextures(width, height)
+    GLES20.glViewport(0, 0, viewW, viewH)
+    GLES20.glClearColor(0f, 0f, 0f, 1f)
+    GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+
+    // Upload planes (tight-pack if needed)
+    uploadPlane(yuvTexIds!![0], y, width, height, yStride)
+    uploadPlane(yuvTexIds!![1], u, width / 2, height / 2, uStride)
+    uploadPlane(yuvTexIds!![2], v, width / 2, height / 2, vStride)
+
+    val program = progYuv ?: return
+    GLES20.glUseProgram(program.id)
+    val verts = createFullscreenQuad(rotationDeg)
+    val bb = java.nio.ByteBuffer.allocateDirect(verts.size * 4).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
+    bb.put(verts).position(0)
+    val stride = 4 * 4
+    bb.position(0)
+    GLES20.glVertexAttribPointer(program.attrs["aPosition"]!!, 2, GLES20.GL_FLOAT, false, stride, bb)
+    GLES20.glEnableVertexAttribArray(program.attrs["aPosition"]!!)
+    bb.position(2)
+    GLES20.glVertexAttribPointer(program.attrs["aTexCoord"]!!, 2, GLES20.GL_FLOAT, false, stride, bb)
+    GLES20.glEnableVertexAttribArray(program.attrs["aTexCoord"]!!)
+
+    GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTexIds!![0])
+    GLES20.glUniform1i(program.uniforms["yTex"]!!, 0)
+    GLES20.glActiveTexture(GLES20.GL_TEXTURE1)
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTexIds!![1])
+    GLES20.glUniform1i(program.uniforms["uTex"]!!, 1)
+    GLES20.glActiveTexture(GLES20.GL_TEXTURE2)
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTexIds!![2])
+    GLES20.glUniform1i(program.uniforms["vTex"]!!, 2)
+
+    GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0)
+  }
+
+  private fun ensureYuvTextures(width: Int, height: Int) {
+    if (yuvTexIds != null) return
+    val ids = IntArray(3)
+    GLES20.glGenTextures(3, ids, 0)
+    for (i in 0 until 3) {
+      GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[i])
+      GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+      GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+      GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+      GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+      GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, if (i == 0) width else width / 2, if (i == 0) height else height / 2, 0, GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, null)
+    }
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0)
+    yuvTexIds = ids
+  }
+
+  private fun uploadPlane(texId: Int, data: java.nio.ByteBuffer, width: Int, height: Int, rowStride: Int) {
+    // If stride equals width we can upload directly, otherwise repack row-by-row.
+    val tight = if (rowStride == width) data else repack(data, width, height, rowStride)
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texId)
+    tight.position(0)
+    GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, width, height, GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, tight)
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0)
+  }
+
+  private fun repack(src: java.nio.ByteBuffer, width: Int, height: Int, rowStride: Int): java.nio.ByteBuffer {
+    val out = java.nio.ByteBuffer.allocateDirect(width * height)
+    var pos = src.position()
+    for (y in 0 until height) {
+      val rowStart = pos + y * rowStride
+      val oldPos = src.position()
+      src.position(rowStart)
+      val slice = src.slice()
+      slice.limit(width)
+      out.put(slice)
+      src.position(oldPos)
+    }
+    out.position(0)
+    return out
   }
 
   fun drawOverlay(xPx: Float, yPx: Float, wPx: Float, hPx: Float, viewW: Int, viewH: Int, textureId: Int, opacity: Float) {

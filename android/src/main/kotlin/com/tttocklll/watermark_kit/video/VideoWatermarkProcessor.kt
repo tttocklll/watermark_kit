@@ -7,7 +7,9 @@ import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
+import com.tttocklll.watermark_kit.WMLog
 import android.view.Surface
 import com.tttocklll.watermark_kit.*
 import java.io.File
@@ -44,7 +46,7 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
       try {
         process(task, callbacks, onCompleted)
       } catch (t: Throwable) {
-        Log.e("WM", "Video compose failed", t)
+        WMLog.e("Video compose failed", t)
         safeError(callbacks, taskId, "compose_failed", t.message ?: "Unknown error")
         onError("compose_failed", t.message ?: "Unknown error")
       } finally {
@@ -66,7 +68,22 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
     extractor.selectTrack(videoTrack)
 
     val vFmt = extractor.getTrackFormat(videoTrack)
-    val rotation = if (vFmt.containsKey(MediaFormat.KEY_ROTATION)) vFmt.getInteger(MediaFormat.KEY_ROTATION) else 0
+    // Normalize decoder format: for DV, strip dv-specific csd and map to HEVC; also strip rotation and handle in GL.
+    var inMime = vFmt.getString(MediaFormat.KEY_MIME) ?: "video/avc"
+    val hadRotation = vFmt.containsKey(MediaFormat.KEY_ROTATION)
+    val rotation = if (hadRotation) vFmt.getInteger(MediaFormat.KEY_ROTATION) else 0
+    if (hadRotation) {
+      try { vFmt.setInteger(MediaFormat.KEY_ROTATION, 0) } catch (_: Throwable) {}
+    }
+    if (inMime.contains("dolby-vision", ignoreCase = true)) {
+      // Many decoders expect DV to be provided as plain HEVC BL; csd-2 triggers issues.
+      try {
+        vFmt.setString(MediaFormat.KEY_MIME, "video/hevc")
+        if (vFmt.containsKey("csd-2")) vFmt.removeKey("csd-2")
+        inMime = "video/hevc"
+      } catch (_: Throwable) {}
+    }
+    WMLog.d("Video in fmt=${vFmt.getString(MediaFormat.KEY_MIME)} size=${vFmt.getInteger(MediaFormat.KEY_WIDTH)}x${vFmt.getInteger(MediaFormat.KEY_HEIGHT)} rot=$rotation")
     val srcW = vFmt.getInteger(MediaFormat.KEY_WIDTH)
     val srcH = vFmt.getInteger(MediaFormat.KEY_HEIGHT)
     val displayW = if (rotation % 180 != 0) srcH else srcW
@@ -80,6 +97,7 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
       VideoCodec.HEVC -> "video/hevc"
       else -> "video/avc"
     }
+    WMLog.d("Encode cfg: $videoCodec ${encW}x${encH} fps=${fpsGuess} br=${bitrate}")
     if (!isCodecAvailable(videoCodec)) {
       if (req.codec == VideoCodec.HEVC && isCodecAvailable("video/avc")) {
         // fallback to AVC
@@ -105,8 +123,10 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
       setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
       setInteger(MediaFormat.KEY_FRAME_RATE, max(1, (req.maxFps ?: fpsGuess).toInt()))
       setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+      try { setInteger("profile", MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline) } catch (_: Throwable) {}
+      try { setInteger("level", MediaCodecInfo.CodecProfileLevel.AVCLevel31) } catch (_: Throwable) {}
     }
-    val encoder = MediaCodec.createEncoderByType(videoCodec)
+    val encoder = createEncoderPreferSoftware(videoCodec) ?: MediaCodec.createEncoderByType(videoCodec)
     encoder.configure(encFmt, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
     val inputSurface = encoder.createInputSurface()
     encoder.start()
@@ -127,7 +147,6 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
 
     // Decoder to Surface
     // Prepare decoder with fallback for Dolby Vision → HEVC when necessary
-    var inMime = vFmt.getString(MediaFormat.KEY_MIME) ?: "video/avc"
     var decoderMime = inMime
     if (!isDecoderAvailable(decoderMime)) {
       if (decoderMime.contains("dolby-vision")) {
@@ -136,21 +155,26 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
         try { vFmt.setString(MediaFormat.KEY_MIME, decoderMime) } catch (_: Throwable) {}
       }
     }
-    val decoder = try {
-      MediaCodec.createDecoderByType(decoderMime)
+    val decoder = createDecoderPreferSoftware(decoderMime) ?: run {
+      if (decoderMime != "video/avc") createDecoderPreferSoftware("video/avc") else null
+    } ?: throw RuntimeException("No suitable decoder for $decoderMime")
+    WMLog.d("Using decoder name=${decoder.name} mime=$decoderMime")
+    var useSurfacePath = true
+    try {
+      decoder.configure(vFmt, gl.getDecoderSurface(), null, 0)
+      decoder.start()
+      useSurfacePath = true
     } catch (t: Throwable) {
-      if (decoderMime != "video/avc" && isDecoderAvailable("video/avc")) {
-        try { vFmt.setString(MediaFormat.KEY_MIME, "video/avc") } catch (_: Throwable) {}
-        MediaCodec.createDecoderByType("video/avc")
-      } else {
-        throw t
-      }
+      WMLog.w("Surface decoder configure failed: ${t.message}")
+      useSurfacePath = false
+      try { decoder.release() } catch (_: Throwable) {}
     }
-    decoder.configure(vFmt, gl.getDecoderSurface(), null, 0)
-    decoder.start()
 
     var videoTrackIndexMuxer = -1
     var muxerStarted = false
+    var renderedFrames = 0
+    var encoderFrames = 0
+    val surfaceStartMs = SystemClock.elapsedRealtime()
 
     val startUs = 0L
     var durationUs = extractor.getSampleTimeDurationUs(videoTrack)
@@ -159,12 +183,13 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
     val info = MediaCodec.BufferInfo()
     var sawInputEOS = false
     var sawOutputEOS = false
+    var signaledEncoderEOS = false
 
     // Prepare to read video
     extractor.unselectAll()
     extractor.selectTrack(videoTrack)
 
-    while (!task.cancelled && !sawOutputEOS) {
+    if (useSurfacePath) while (!task.cancelled && !sawOutputEOS) {
       // Feed decoder input
       if (!sawInputEOS) {
         val inIndex = decoder.dequeueInputBuffer(10_000)
@@ -172,11 +197,21 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
           val buf = decoder.getInputBuffer(inIndex)!!
           val sampleSize = extractor.readSampleData(buf, 0)
           if (sampleSize < 0) {
-            decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+            try {
+              decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+            } catch (e: Throwable) {
+              WMLog.e("queueInputBuffer EOS failed: ${e.message}")
+              throw e
+            }
             sawInputEOS = true
           } else {
             val pts = extractor.sampleTime
-            decoder.queueInputBuffer(inIndex, 0, sampleSize, max(0, pts), 0)
+            try {
+              decoder.queueInputBuffer(inIndex, 0, sampleSize, max(0, pts), 0)
+            } catch (e: Throwable) {
+              WMLog.e("queueInputBuffer failed at pts=$pts: ${e.message}")
+              throw e
+            }
             extractor.advance()
           }
         }
@@ -187,11 +222,26 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
       when {
         outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {}
         outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-          // ignore
+          // Decoder output format change: keep silent unless verbose
+          val of = decoder.outputFormat
+          WMLog.d("Decoder output format changed: $of")
         }
         outIndex >= 0 -> {
-          val render = info.size > 0
+          val isDecEOS = (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0
+          val render = info.size > 0 && !isDecEOS
           decoder.releaseOutputBuffer(outIndex, render)
+          if (isDecEOS) {
+            // Decoder signaled EOS: propagate to encoder so it can emit EOS
+            if (!signaledEncoderEOS) {
+              try {
+                WMLog.d("Decoder EOS reached, signaling encoder EOS")
+                encoder.signalEndOfInputStream()
+                signaledEncoderEOS = true
+              } catch (t: Throwable) {
+                WMLog.w("signalEndOfInputStream failed: ${t.message}")
+              }
+            }
+          }
           if (render) {
             val stMatrix = gl.updateDecoderTexImage()
             // Draw into encoder surface
@@ -201,6 +251,7 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
               gl.drawOverlay(ov.posX, ov.posY, ov.wPx, ov.hPx, encW, encH, overlayTexId, req.opacity.toFloat())
             }
             gl.setPresentationTime(info.presentationTimeUs * 1000)
+            renderedFrames++
 
             // Start muxer once encoder has output format
             if (!muxerStarted && videoTrackIndexMuxer == -1) {
@@ -242,6 +293,7 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
               // progress
               val p = info.presentationTimeUs.toDouble() / max(1.0, durationUs.toDouble())
               safeProgress(callbacks, req.taskId!!, p.coerceIn(0.0, 1.0), max(0.0, (durationUs - info.presentationTimeUs) / 1_000_000.0))
+              encoderFrames++
             }
             encoder.releaseOutputBuffer(eIndex, false)
             if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
@@ -251,11 +303,38 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
           }
         }
       }
+
+      // Surface path stalled? Fallback after threshold (either frames rendered without encoder start or time-based).
+      val elapsed = SystemClock.elapsedRealtime() - surfaceStartMs
+      if (!muxerStarted && (renderedFrames >= 60 || elapsed > 3000) && encoderFrames == 0 && !signaledEncoderEOS) {
+        WMLog.w("Surface path stalled (rendered=$renderedFrames, encoded=$encoderFrames). Falling back to ByteBuffer decode.")
+        try { decoder.stop(); decoder.release() } catch (_: Throwable) {}
+        try { encoder.stop(); encoder.release() } catch (_: Throwable) {}
+        // Use same muxer (not started yet) and audioExtractor
+        // Reuse existing gl
+        processByteBuffer(req, callbacks, muxer, audioExtractor, audioTrackIndexMuxer, gl, encW, encH, rotation, videoCodec, bitrate, fpsGuess)
+        return
+      }
+    }
+
+    if (!useSurfacePath && !task.cancelled) {
+      // Fallback: ByteBuffer decode path
+      processByteBuffer(req, callbacks, muxer, audioExtractor, audioTrackIndexMuxer, gl, encW, encH, rotation, videoCodec, bitrate, fpsGuess)
+      // processByteBuffer handles muxer.stop/release etc.
+      return
     }
 
     // finalize
     decoder.stop(); decoder.release()
-    encoder.signalEndOfInputStream()
+    if (!signaledEncoderEOS) {
+      try {
+        WMLog.d("Final signaling encoder EOS")
+        encoder.signalEndOfInputStream()
+        signaledEncoderEOS = true
+      } catch (t: Throwable) {
+        WMLog.w("signalEndOfInputStream at finalize failed: ${t.message}")
+      }
+    }
     // drain remaining encoder
     var draining = true
     val finInfo = MediaCodec.BufferInfo()
@@ -288,6 +367,187 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
     val res = ComposeVideoResult(taskId, task.outPath, encW.toLong(), encH.toLong(), max(1, (durationUs / 1000).toInt()).toLong(), req.codec)
     safeCompleted(callbacks, res)
     onCompleted(res)
+  }
+
+  private fun processByteBuffer(
+    req: ComposeVideoRequest,
+    callbacks: WatermarkCallbacks,
+    muxer: MediaMuxer,
+    audioExtractor: MediaExtractor,
+    audioTrackIndexMuxer: Int,
+    gl: GlRenderer,
+    encW: Int,
+    encH: Int,
+    rotation: Int,
+    videoCodec: String,
+    bitrate: Int,
+    fpsGuess: Double
+  ) {
+    val extractor = MediaExtractor()
+    extractor.setDataSource(req.inputVideoPath)
+    val (videoTrack, audioTrack) = selectTracks(extractor)
+    extractor.selectTrack(videoTrack)
+    val vFmt = extractor.getTrackFormat(videoTrack)
+    // Configure decoder to ByteBuffer YUV420Flexible
+    val fmt = MediaFormat.createVideoFormat(vFmt.getString(MediaFormat.KEY_MIME)!!, vFmt.getInteger(MediaFormat.KEY_WIDTH), vFmt.getInteger(MediaFormat.KEY_HEIGHT))
+    fmt.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
+    if (vFmt.containsKey("csd-0")) fmt.setByteBuffer("csd-0", vFmt.getByteBuffer("csd-0"))
+    if (vFmt.containsKey("csd-1")) fmt.setByteBuffer("csd-1", vFmt.getByteBuffer("csd-1"))
+    val decoder = createDecoderPreferSoftware(fmt.getString(MediaFormat.KEY_MIME)!!) ?: throw RuntimeException("No decoder for ByteBuffer path")
+    decoder.configure(fmt, null, null, 0)
+    decoder.start()
+
+    // Recreate encoder for safety
+    val encoder = createEncoderPreferSoftware(videoCodec) ?: MediaCodec.createEncoderByType(videoCodec)
+    val encFmt = MediaFormat.createVideoFormat(videoCodec, encW, encH).apply {
+      setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+      setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
+      setInteger(MediaFormat.KEY_FRAME_RATE, max(1, fpsGuess.toInt()))
+      setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+      try { setInteger("profile", MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline) } catch (_: Throwable) {}
+      try { setInteger("level", MediaCodecInfo.CodecProfileLevel.AVCLevel31) } catch (_: Throwable) {}
+    }
+    encoder.configure(encFmt, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+    val inputSurface = encoder.createInputSurface()
+    encoder.start()
+    gl.setEncoderSurface(inputSurface)
+    gl.makeCurrent()
+
+    var videoTrackIndexMuxer = -1
+    var muxerStarted = false
+    val info = MediaCodec.BufferInfo()
+    var sawInputEOS = false
+    var sawOutputEOS = false
+    var signaledEncoderEOS = false
+    val durationUs = vFmt.getLong(MediaFormat.KEY_DURATION, 1_000_000L)
+
+    // Precompute overlay for output size
+    val overlay = prepareOverlay(req, encW, encH)
+    val overlayTexId = overlay?.let { gl.create2DTextureFromBitmap(it.bitmap) }
+
+    while (!sawOutputEOS) {
+      if (!sawInputEOS) {
+        val inIndex = decoder.dequeueInputBuffer(10_000)
+        if (inIndex >= 0) {
+          val buf = decoder.getInputBuffer(inIndex)!!
+          val size = extractor.readSampleData(buf, 0)
+          if (size < 0) {
+            decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+            sawInputEOS = true
+          } else {
+            val pts = extractor.sampleTime
+            decoder.queueInputBuffer(inIndex, 0, size, max(0, pts), 0)
+            extractor.advance()
+          }
+        }
+      }
+
+      val outIndex = decoder.dequeueOutputBuffer(info, 10_000)
+      when {
+        outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {}
+        outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {}
+        outIndex >= 0 -> {
+          val isDecEOS = (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0
+          val render = info.size > 0 && !isDecEOS
+          val image = decoder.getOutputImage(outIndex)
+          if (render && image != null) {
+            val yPlane = image.planes[0]
+            val uPlane = image.planes[1]
+            val vPlane = image.planes[2]
+            // Handle pixelStride (usually 1 for Y and 2 for UV on some devices)
+            val yBuf = packTight(yPlane.buffer, image.width, image.height, yPlane.rowStride, yPlane.pixelStride)
+            val uBuf = packTight(uPlane.buffer, image.width / 2, image.height / 2, uPlane.rowStride, uPlane.pixelStride)
+            val vBuf = packTight(vPlane.buffer, image.width / 2, image.height / 2, vPlane.rowStride, vPlane.pixelStride)
+
+            gl.drawYuvFrame(yBuf, uBuf, vBuf, image.width, image.width / 2, image.width / 2, image.width, image.height, rotation, encW, encH)
+            overlay?.let { ov ->
+              overlayTexId?.let { tid -> gl.drawOverlay(ov.posX, ov.posY, ov.wPx, ov.hPx, encW, encH, tid, req.opacity.toFloat()) }
+            }
+            image.close()
+
+            gl.setPresentationTime(info.presentationTimeUs * 1_000)
+            gl.swapBuffers()
+          }
+          // Do not render on EOS
+          decoder.releaseOutputBuffer(outIndex, false)
+          if (isDecEOS && !signaledEncoderEOS) {
+            try {
+              WMLog.d("[BB] Decoder EOS reached, signaling encoder EOS")
+              encoder.signalEndOfInputStream()
+              signaledEncoderEOS = true
+            } catch (t: Throwable) {
+              WMLog.w("[BB] signalEndOfInputStream failed: ${t.message}")
+            }
+          }
+
+          // drain encoder
+          var enc = true
+          while (enc) {
+            val ei = encoder.dequeueOutputBuffer(info, 0)
+            when {
+              ei == MediaCodec.INFO_TRY_AGAIN_LATER -> enc = false
+              ei == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                videoTrackIndexMuxer = muxer.addTrack(encoder.outputFormat)
+                if (!muxerStarted) {
+                  muxer.start()
+                  muxerStarted = true
+                  if (audioTrackIndexMuxer >= 0) copyAudioAsync(audioExtractor, muxer, audioTrackIndexMuxer)
+                }
+              }
+              ei >= 0 -> {
+                val out = encoder.getOutputBuffer(ei)!!
+                if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) info.size = 0
+                if (info.size > 0 && muxerStarted) muxer.writeSampleData(videoTrackIndexMuxer, out, info)
+                encoder.releaseOutputBuffer(ei, false)
+                if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) { enc = false; sawOutputEOS = true }
+              }
+            }
+          }
+
+          val p = info.presentationTimeUs.toDouble() / max(1.0, durationUs.toDouble())
+          safeProgress(callbacks, req.taskId!!, p.coerceIn(0.0, 1.0), max(0.0, (durationUs - info.presentationTimeUs) / 1_000_000.0))
+        }
+      }
+    }
+
+    decoder.stop(); decoder.release()
+    if (!signaledEncoderEOS) {
+      try {
+        WMLog.d("[BB] Final signaling encoder EOS")
+        encoder.signalEndOfInputStream()
+        signaledEncoderEOS = true
+      } catch (t: Throwable) {
+        WMLog.w("[BB] signalEndOfInputStream at finalize failed: ${t.message}")
+      }
+    }
+    encoder.stop(); encoder.release()
+    muxer.stop(); muxer.release()
+
+    val res = ComposeVideoResult(req.taskId!!, req.outputVideoPath ?: "", encW.toLong(), encH.toLong(), max(1, (durationUs / 1000).toInt()).toLong(), req.codec)
+    safeCompleted(callbacks, res)
+  }
+
+  private fun packTight(src: java.nio.ByteBuffer, width: Int, height: Int, rowStride: Int, pixelStride: Int): java.nio.ByteBuffer {
+    if (pixelStride == 1 && rowStride == width) {
+      val dup = src.duplicate()
+      dup.position(0)
+      dup.limit(width * height)
+      val out = java.nio.ByteBuffer.allocateDirect(width * height)
+      out.put(dup)
+      out.position(0)
+      return out
+    }
+    val out = java.nio.ByteBuffer.allocateDirect(width * height)
+    val base = src.position()
+    for (y in 0 until height) {
+      var offset = base + y * rowStride
+      for (x in 0 until width) {
+        out.put(src.get(offset))
+        offset += pixelStride
+      }
+    }
+    out.position(0)
+    return out
   }
 
   private fun selectTracks(extractor: MediaExtractor): Pair<Int, Int> {
@@ -346,6 +606,46 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
   private fun isDecoderAvailable(mime: String): Boolean {
     val list = MediaCodecList(MediaCodecList.REGULAR_CODECS)
     return list.codecInfos.any { !it.isEncoder && it.supportedTypes.any { t -> t.equals(mime, ignoreCase = true) } }
+  }
+
+  private fun createDecoderPreferSoftware(mime: String): MediaCodec? {
+    val list = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+    val candidates = list.codecInfos.filter { !it.isEncoder && it.supportedTypes.any { t -> t.equals(mime, ignoreCase = true) } }
+    val sorted = candidates.sortedBy { namePreferenceScore(it.name) }
+    for (ci in sorted) {
+      try {
+        WMLog.d("Trying decoder ${ci.name} for $mime")
+        return MediaCodec.createByCodecName(ci.name)
+      } catch (t: Throwable) {
+        WMLog.w("Decoder ${ci.name} failed to create: ${t.message}")
+      }
+    }
+    return null
+  }
+
+  private fun namePreferenceScore(name: String): Int {
+    val n = name.lowercase()
+    return when {
+      n.contains("google") -> 0
+      n.startsWith("c2.android") -> 1
+      n.startsWith("omx.google") -> 0
+      else -> 10
+    }
+  }
+
+  private fun createEncoderPreferSoftware(mime: String): MediaCodec? {
+    val list = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+    val candidates = list.codecInfos.filter { it.isEncoder && it.supportedTypes.any { t -> t.equals(mime, ignoreCase = true) } }
+    val sorted = candidates.sortedBy { namePreferenceScore(it.name) }
+    for (ci in sorted) {
+      try {
+        WMLog.d("Trying encoder ${ci.name} for $mime")
+        return MediaCodec.createByCodecName(ci.name)
+      } catch (t: Throwable) {
+        WMLog.w("Encoder ${ci.name} failed to create: ${t.message}")
+      }
+    }
+    return null
   }
 
   private fun chooseEncodeSize(w: Int, h: Int, maxLongSide: Int?): Pair<Int, Int> {

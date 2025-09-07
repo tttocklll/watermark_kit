@@ -74,6 +74,47 @@ internal object ShaderPrograms {
     )
   }
 
+  fun buildYuv(): Program {
+    val vs = """
+      attribute vec4 aPosition;
+      attribute vec2 aTexCoord;
+      varying vec2 vTexCoord;
+      void main() {
+        gl_Position = aPosition;
+        vTexCoord = aTexCoord;
+      }
+    """
+    val fs = """
+      precision mediump float;
+      uniform sampler2D yTex;
+      uniform sampler2D uTex;
+      uniform sampler2D vTex;
+      varying vec2 vTexCoord;
+      void main() {
+        float y = texture2D(yTex, vTexCoord).r;
+        float u = texture2D(uTex, vTexCoord).r - 0.5;
+        float v = texture2D(vTex, vTexCoord).r - 0.5;
+        float r = y + 1.403 * v;
+        float g = y - 0.344 * u - 0.714 * v;
+        float b = y + 1.770 * u;
+        gl_FragColor = vec4(r, g, b, 1.0);
+      }
+    """
+    val prog = link(vs, fs)
+    return Program(
+      prog,
+      mapOf(
+        "aPosition" to GLES20.glGetAttribLocation(prog, "aPosition"),
+        "aTexCoord" to GLES20.glGetAttribLocation(prog, "aTexCoord"),
+      ),
+      mapOf(
+        "yTex" to GLES20.glGetUniformLocation(prog, "yTex"),
+        "uTex" to GLES20.glGetUniformLocation(prog, "uTex"),
+        "vTex" to GLES20.glGetUniformLocation(prog, "vTex"),
+      )
+    )
+  }
+
   private fun compile(type: Int, source: String): Int {
     val shader = GLES20.glCreateShader(type)
     GLES20.glShaderSource(shader, source)
@@ -107,4 +148,3 @@ internal object ShaderPrograms {
     return prog
   }
 }
-
