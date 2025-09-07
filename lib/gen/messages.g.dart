@@ -52,7 +52,7 @@ enum OutputFormat {
   png,
 }
 
-enum Unit {
+enum MeasureUnit {
   px,
   percent,
 }
@@ -74,8 +74,8 @@ class ComposeImageRequest {
     this.quality = 0.9,
     this.offsetX = 0.0,
     this.offsetY = 0.0,
-    this.marginUnit = Unit.px,
-    this.offsetUnit = Unit.px,
+    this.marginUnit = MeasureUnit.px,
+    this.offsetUnit = MeasureUnit.px,
   });
 
   Uint8List baseImage;
@@ -98,9 +98,9 @@ class ComposeImageRequest {
 
   double offsetY;
 
-  Unit marginUnit;
+  MeasureUnit marginUnit;
 
-  Unit offsetUnit;
+  MeasureUnit offsetUnit;
 
   List<Object?> _toList() {
     return <Object?>[
@@ -135,8 +135,8 @@ class ComposeImageRequest {
       quality: result[7]! as double,
       offsetX: result[8]! as double,
       offsetY: result[9]! as double,
-      marginUnit: result[10]! as Unit,
-      offsetUnit: result[11]! as Unit,
+      marginUnit: result[10]! as MeasureUnit,
+      offsetUnit: result[11]! as MeasureUnit,
     );
   }
 
@@ -327,10 +327,10 @@ class ComposeTextRequest {
     required this.text,
     this.anchor = Anchor.bottomRight,
     this.margin = 16.0,
-    this.marginUnit = Unit.px,
+    this.marginUnit = MeasureUnit.px,
     this.offsetX = 0.0,
     this.offsetY = 0.0,
-    this.offsetUnit = Unit.px,
+    this.offsetUnit = MeasureUnit.px,
     this.widthPercent = 0.18,
     required this.textStyle,
     required this.style,
@@ -346,13 +346,13 @@ class ComposeTextRequest {
 
   double margin;
 
-  Unit marginUnit;
+  MeasureUnit marginUnit;
 
   double offsetX;
 
   double offsetY;
 
-  Unit offsetUnit;
+  MeasureUnit offsetUnit;
 
   double widthPercent;
 
@@ -392,10 +392,10 @@ class ComposeTextRequest {
       text: result[1]! as String,
       anchor: result[2]! as Anchor,
       margin: result[3]! as double,
-      marginUnit: result[4]! as Unit,
+      marginUnit: result[4]! as MeasureUnit,
       offsetX: result[5]! as double,
       offsetY: result[6]! as double,
-      offsetUnit: result[7]! as Unit,
+      offsetUnit: result[7]! as MeasureUnit,
       widthPercent: result[8]! as double,
       textStyle: result[9]! as TextStyleDto,
       style: result[10]! as WmStyleDto,
@@ -431,10 +431,10 @@ class ComposeVideoRequest {
     this.text,
     this.anchor = Anchor.bottomRight,
     this.margin = 16.0,
-    this.marginUnit = Unit.px,
+    this.marginUnit = MeasureUnit.px,
     this.offsetX = 0.0,
     this.offsetY = 0.0,
-    this.offsetUnit = Unit.px,
+    this.offsetUnit = MeasureUnit.px,
     this.widthPercent = 0.18,
     this.opacity = 0.6,
     this.codec = VideoCodec.h264,
@@ -457,13 +457,13 @@ class ComposeVideoRequest {
 
   double margin;
 
-  Unit marginUnit;
+  MeasureUnit marginUnit;
 
   double offsetX;
 
   double offsetY;
 
-  Unit offsetUnit;
+  MeasureUnit offsetUnit;
 
   double widthPercent;
 
@@ -512,10 +512,10 @@ class ComposeVideoRequest {
       text: result[4] as String?,
       anchor: result[5]! as Anchor,
       margin: result[6]! as double,
-      marginUnit: result[7]! as Unit,
+      marginUnit: result[7]! as MeasureUnit,
       offsetX: result[8]! as double,
       offsetY: result[9]! as double,
-      offsetUnit: result[10]! as Unit,
+      offsetUnit: result[10]! as MeasureUnit,
       widthPercent: result[11]! as double,
       opacity: result[12]! as double,
       codec: result[13]! as VideoCodec,
@@ -623,7 +623,7 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is OutputFormat) {
       buffer.putUint8(130);
       writeValue(buffer, value.index);
-    }    else if (value is Unit) {
+    }    else if (value is MeasureUnit) {
       buffer.putUint8(131);
       writeValue(buffer, value.index);
     }    else if (value is VideoCodec) {
@@ -666,7 +666,7 @@ class _PigeonCodec extends StandardMessageCodec {
         return value == null ? null : OutputFormat.values[value];
       case 131: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : Unit.values[value];
+        return value == null ? null : MeasureUnit.values[value];
       case 132: 
         final int? value = readValue(buffer) as int?;
         return value == null ? null : VideoCodec.values[value];

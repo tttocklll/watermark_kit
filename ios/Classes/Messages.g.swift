@@ -145,7 +145,7 @@ enum OutputFormat: Int {
   case png = 1
 }
 
-enum Unit: Int {
+enum MeasureUnit: Int {
   case px = 0
   case percent = 1
 }
@@ -167,8 +167,8 @@ struct ComposeImageRequest: Hashable {
   var quality: Double
   var offsetX: Double
   var offsetY: Double
-  var marginUnit: Unit
-  var offsetUnit: Unit
+  var marginUnit: MeasureUnit
+  var offsetUnit: MeasureUnit
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -183,8 +183,8 @@ struct ComposeImageRequest: Hashable {
     let quality = pigeonVar_list[7] as! Double
     let offsetX = pigeonVar_list[8] as! Double
     let offsetY = pigeonVar_list[9] as! Double
-    let marginUnit = pigeonVar_list[10] as! Unit
-    let offsetUnit = pigeonVar_list[11] as! Unit
+    let marginUnit = pigeonVar_list[10] as! MeasureUnit
+    let offsetUnit = pigeonVar_list[11] as! MeasureUnit
 
     return ComposeImageRequest(
       baseImage: baseImage,
@@ -337,10 +337,10 @@ struct ComposeTextRequest: Hashable {
   var text: String
   var anchor: Anchor
   var margin: Double
-  var marginUnit: Unit
+  var marginUnit: MeasureUnit
   var offsetX: Double
   var offsetY: Double
-  var offsetUnit: Unit
+  var offsetUnit: MeasureUnit
   var widthPercent: Double
   var textStyle: TextStyleDto
   var style: WmStyleDto
@@ -354,10 +354,10 @@ struct ComposeTextRequest: Hashable {
     let text = pigeonVar_list[1] as! String
     let anchor = pigeonVar_list[2] as! Anchor
     let margin = pigeonVar_list[3] as! Double
-    let marginUnit = pigeonVar_list[4] as! Unit
+    let marginUnit = pigeonVar_list[4] as! MeasureUnit
     let offsetX = pigeonVar_list[5] as! Double
     let offsetY = pigeonVar_list[6] as! Double
-    let offsetUnit = pigeonVar_list[7] as! Unit
+    let offsetUnit = pigeonVar_list[7] as! MeasureUnit
     let widthPercent = pigeonVar_list[8] as! Double
     let textStyle = pigeonVar_list[9] as! TextStyleDto
     let style = pigeonVar_list[10] as! WmStyleDto
@@ -413,10 +413,10 @@ struct ComposeVideoRequest: Hashable {
   var text: String? = nil
   var anchor: Anchor
   var margin: Double
-  var marginUnit: Unit
+  var marginUnit: MeasureUnit
   var offsetX: Double
   var offsetY: Double
-  var offsetUnit: Unit
+  var offsetUnit: MeasureUnit
   var widthPercent: Double
   var opacity: Double
   var codec: VideoCodec
@@ -434,10 +434,10 @@ struct ComposeVideoRequest: Hashable {
     let text: String? = nilOrValue(pigeonVar_list[4])
     let anchor = pigeonVar_list[5] as! Anchor
     let margin = pigeonVar_list[6] as! Double
-    let marginUnit = pigeonVar_list[7] as! Unit
+    let marginUnit = pigeonVar_list[7] as! MeasureUnit
     let offsetX = pigeonVar_list[8] as! Double
     let offsetY = pigeonVar_list[9] as! Double
-    let offsetUnit = pigeonVar_list[10] as! Unit
+    let offsetUnit = pigeonVar_list[10] as! MeasureUnit
     let widthPercent = pigeonVar_list[11] as! Double
     let opacity = pigeonVar_list[12] as! Double
     let codec = pigeonVar_list[13] as! VideoCodec
@@ -556,7 +556,7 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
     case 131:
       let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
       if let enumResultAsInt = enumResultAsInt {
-        return Unit(rawValue: enumResultAsInt)
+        return MeasureUnit(rawValue: enumResultAsInt)
       }
       return nil
     case 132:
@@ -593,7 +593,7 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? OutputFormat {
       super.writeByte(130)
       super.writeValue(value.rawValue)
-    } else if let value = value as? Unit {
+    } else if let value = value as? MeasureUnit {
       super.writeByte(131)
       super.writeValue(value.rawValue)
     } else if let value = value as? VideoCodec {

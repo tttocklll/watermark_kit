@@ -60,13 +60,13 @@ class MethodChannelWatermarkKit extends WatermarkKitPlatform {
       }
     }
 
-    pigeon.Unit _unitFromString(String s) {
+    pigeon.MeasureUnit _unitFromString(String s) {
       switch (s) {
         case 'percent':
-          return pigeon.Unit.percent;
+          return pigeon.MeasureUnit.percent;
         case 'px':
         default:
-          return pigeon.Unit.px;
+          return pigeon.MeasureUnit.px;
       }
     }
 
@@ -216,13 +216,13 @@ class MethodChannelWatermarkKit extends WatermarkKitPlatform {
     }
   }
 
-  pigeon.Unit _unitFromString(String s) {
+  pigeon.MeasureUnit _unitFromString(String s) {
     switch (s) {
       case 'percent':
-        return pigeon.Unit.percent;
+        return pigeon.MeasureUnit.percent;
       case 'px':
       default:
-        return pigeon.Unit.px;
+        return pigeon.MeasureUnit.px;
     }
   }
   // ---------------- Video API ----------------

@@ -10,12 +10,16 @@ import 'package:pigeon/pigeon.dart';
     dartOptions: DartOptions(),
     swiftOut: 'ios/Classes/Messages.g.swift',
     swiftOptions: SwiftOptions(),
+    kotlinOut: 'android/src/main/kotlin/com/tttocklll/watermark_kit/Messages.g.kt',
+    kotlinOptions: KotlinOptions(
+      package: 'com.tttocklll.watermark_kit',
+    ),
   ),
 )
 enum Anchor { topLeft, topRight, bottomLeft, bottomRight, center }
 
 enum OutputFormat { jpeg, png }
-enum Unit { px, percent }
+enum MeasureUnit { px, percent }
 
 class ComposeImageRequest {
   ComposeImageRequest({
@@ -29,8 +33,8 @@ class ComposeImageRequest {
     this.quality = 0.9,
     this.offsetX = 0.0,
     this.offsetY = 0.0,
-    this.marginUnit = Unit.px,
-    this.offsetUnit = Unit.px,
+    this.marginUnit = MeasureUnit.px,
+    this.offsetUnit = MeasureUnit.px,
   });
 
   Uint8List baseImage;
@@ -43,8 +47,8 @@ class ComposeImageRequest {
   double quality;
   double offsetX;
   double offsetY;
-  Unit marginUnit;
-  Unit offsetUnit;
+  MeasureUnit marginUnit;
+  MeasureUnit offsetUnit;
 }
 
 class ComposeImageResult {
@@ -93,10 +97,10 @@ class ComposeTextRequest {
     required this.text,
     this.anchor = Anchor.bottomRight,
     this.margin = 16.0,
-    this.marginUnit = Unit.px,
+    this.marginUnit = MeasureUnit.px,
     this.offsetX = 0.0,
     this.offsetY = 0.0,
-    this.offsetUnit = Unit.px,
+    this.offsetUnit = MeasureUnit.px,
     this.widthPercent = 0.18,
     required this.textStyle,
     required this.style,
@@ -108,10 +112,10 @@ class ComposeTextRequest {
   String text;
   Anchor anchor;
   double margin;
-  Unit marginUnit;
+  MeasureUnit marginUnit;
   double offsetX;
   double offsetY;
-  Unit offsetUnit;
+  MeasureUnit offsetUnit;
   double widthPercent; // if 0, use textStyle.fontSizePt (not used in MVP path)
   TextStyleDto textStyle;
   WmStyleDto style;
@@ -155,10 +159,10 @@ class ComposeVideoRequest {
     this.text,
     this.anchor = Anchor.bottomRight,
     this.margin = 16.0,
-    this.marginUnit = Unit.px,
+    this.marginUnit = MeasureUnit.px,
     this.offsetX = 0.0,
     this.offsetY = 0.0,
-    this.offsetUnit = Unit.px,
+    this.offsetUnit = MeasureUnit.px,
     this.widthPercent = 0.18,
     this.opacity = 0.6,
     this.codec = VideoCodec.h264,
@@ -174,10 +178,10 @@ class ComposeVideoRequest {
   String? text;              // If non-null, render text -> image internally
   Anchor anchor;
   double margin;
-  Unit marginUnit;
+  MeasureUnit marginUnit;
   double offsetX;
   double offsetY;
-  Unit offsetUnit;
+  MeasureUnit offsetUnit;
   double widthPercent;
   double opacity;
   VideoCodec codec;
