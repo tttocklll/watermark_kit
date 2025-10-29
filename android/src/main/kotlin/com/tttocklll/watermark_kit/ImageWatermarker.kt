@@ -29,21 +29,20 @@ internal object ImageWatermarker {
     val scale = targetW / wmSrc.width.coerceAtLeast(1)
     val wmW = (wmSrc.width * scale).toInt().coerceAtLeast(1)
     val wmH = (wmSrc.height * scale).toInt().coerceAtLeast(1)
-    val wm = Bitmap.createScaledBitmap(wmSrc, wmW, wmH, true)
-    if (wm != wmSrc) wmSrc.recycle()
 
     val out = Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(out)
     canvas.drawBitmap(base, 0f, 0f, null)
 
-    val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    // Use high-quality filtering for scaling and drawing
+    val p = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
     p.alpha = (opacity * 255.0).toInt().coerceIn(0, 255)
 
     val pos = AnchorUtil.computePosition(
       base.width,
       base.height,
-      wm.width,
-      wm.height,
+      wmW,
+      wmH,
       anchor,
       margin,
       marginUnit,
@@ -51,17 +50,24 @@ internal object ImageWatermarker {
       offsetY,
       offsetUnit,
     )
-    canvas.drawBitmap(wm, pos.x, pos.y, p)
+
+    // Draw watermark with high-quality scaling using Matrix
+    val matrix = Matrix()
+    matrix.postScale(scale, scale)
+    matrix.postTranslate(pos.x, pos.y)
+    canvas.drawBitmap(wmSrc, matrix, p)
 
     val bos = ByteArrayOutputStream()
     val ok = when (format) {
       OutputFormat.PNG -> out.compress(Bitmap.CompressFormat.PNG, 100, bos)
       OutputFormat.JPEG -> out.compress(Bitmap.CompressFormat.JPEG, (quality * 100).toInt().coerceIn(1, 100), bos)
     }
-    wm.recycle()
+    val resultWidth = base.width
+    val resultHeight = base.height
+    wmSrc.recycle()
     base.recycle()
     out.recycle()
     if (!ok) throw FlutterError("encode_failed", "Failed to encode output image", null)
-    return Result(bos.toByteArray(), base.width, base.height)
+    return Result(bos.toByteArray(), resultWidth, resultHeight)
   }
 }

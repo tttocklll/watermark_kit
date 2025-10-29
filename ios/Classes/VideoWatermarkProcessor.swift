@@ -264,11 +264,11 @@ final class VideoWatermarkProcessor {
     // Prefer watermarkImage; fallback to text
     if let data = request.watermarkImage?.data, !data.isEmpty {
       guard let src = decodeCIImage(from: data) else { return nil }
-      // Scale by widthPercent of base width
+      // Scale by widthPercent of base width using high-quality Lanczos
       let targetW = max(1.0, baseWidth * CGFloat(request.widthPercent))
       let extent = src.extent
       let scale = targetW / max(1.0, extent.width)
-      return src.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+      return scaleCIImageHighQuality(src, scale: scale)
     }
     if let text = request.text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       let fontFamily = ".SFUI"
@@ -283,9 +283,22 @@ final class VideoWatermarkProcessor {
       let targetW = max(1.0, baseWidth * CGFloat(request.widthPercent))
       let extent = src.extent
       let scale = targetW / max(1.0, extent.width)
-      return src.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+      return scaleCIImageHighQuality(src, scale: scale)
     }
     return nil
+  }
+
+  private static func scaleCIImageHighQuality(_ image: CIImage, scale: CGFloat) -> CIImage {
+    // Use CILanczosScaleTransform for superior quality scaling
+    if let lanczos = CIFilter(name: "CILanczosScaleTransform") {
+      lanczos.setValue(image, forKey: kCIInputImageKey)
+      lanczos.setValue(scale, forKey: kCIInputScaleKey)
+      lanczos.setValue(1.0, forKey: kCIInputAspectRatioKey)
+      return lanczos.outputImage ?? image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    } else {
+      // Fallback to simple transform
+      return image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    }
   }
 
   private static func decodeCIImage(from data: Data) -> CIImage? {
