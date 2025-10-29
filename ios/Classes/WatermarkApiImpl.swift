@@ -70,7 +70,7 @@ final class WatermarkApiImpl: WatermarkApi {
         fontFamily: request.textStyle.fontFamily,
         fontSizePt: request.textStyle.fontSizePt,
         fontWeight: Int(request.textStyle.fontWeight),
-        colorArgb: UInt32(bitPattern: Int32(request.textStyle.colorArgb))
+        colorArgb: UInt32(truncatingIfNeeded: request.textStyle.colorArgb)
       ) else {
         throw PigeonError(code: "render_failed", message: "Failed to render text", details: nil)
       }

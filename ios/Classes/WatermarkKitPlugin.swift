@@ -263,9 +263,17 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
     var ascent: CGFloat = 0
     var descent: CGFloat = 0
     var leading: CGFloat = 0
-    let width = CGFloat(CTLineGetTypographicBounds(line, &ascent, &descent, &leading))
+    let typographicWidth = CGFloat(CTLineGetTypographicBounds(line, &ascent, &descent, &leading))
+
+    // Use CTLineGetImageBounds for actual glyph bounds (handles italic, kerning, etc.)
+    guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+          let ctx2 = CGContext(data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+      return nil
+    }
+    let imageBounds = CTLineGetImageBounds(line, ctx2)
+    let width = max(typographicWidth, imageBounds.width)
     let height = ascent + descent
-    let padding: CGFloat = 4.0
+    let padding: CGFloat = 8.0  // Increased padding for safety
     let scale: CGFloat = 2.0
     let wPx = max(1, Int(ceil((width + padding * 2) * scale)))
     let hPx = max(1, Int(ceil((height + padding * 2) * scale)))
