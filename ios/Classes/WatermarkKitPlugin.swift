@@ -37,10 +37,15 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
   }
 
   private let ciContext: CIContext = {
+    let options: [CIContextOption: Any] = [
+      .workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+      .highQualityDownsample: true,
+      .cacheIntermediates: false  // Better memory usage for large images
+    ]
     if let device = MTLCreateSystemDefaultDevice() {
-      return CIContext(mtlDevice: device, options: [CIContextOption.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!])
+      return CIContext(mtlDevice: device, options: options)
     }
-    return CIContext(options: [CIContextOption.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!])
+    return CIContext(options: options)
   }()
 
   // Expose shared CIContext for other classes in the module.
@@ -155,11 +160,22 @@ public class WatermarkKitPlugin: NSObject, FlutterPlugin {
       throw ComposeError(code: "invalid_image", message: "Base image too small")
     }
 
-    // Scale watermark to widthPercent * baseWidth
+    // Scale watermark to widthPercent * baseWidth using high-quality Lanczos algorithm
     let targetW = max(1.0, baseW * CGFloat(widthPercent))
     let wmExtent = wmCIOriginal.extent
     let scale = targetW / max(wmExtent.width, 1.0)
-    let scaled = wmCIOriginal.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+
+    // Use CILanczosScaleTransform for superior quality scaling
+    let scaled: CIImage
+    if let lanczos = CIFilter(name: "CILanczosScaleTransform") {
+      lanczos.setValue(wmCIOriginal, forKey: kCIInputImageKey)
+      lanczos.setValue(scale, forKey: kCIInputScaleKey)
+      lanczos.setValue(1.0, forKey: kCIInputAspectRatioKey)
+      scaled = lanczos.outputImage ?? wmCIOriginal.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    } else {
+      // Fallback to simple transform
+      scaled = wmCIOriginal.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    }
 
     // Apply opacity using CIColorMatrix on alpha
     let alphaVec = CIVector(x: 0, y: 0, z: 0, w: CGFloat(opacity))
