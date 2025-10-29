@@ -1,3 +1,14 @@
+## 2.1.1
+
+Fixed
+- **iOS**: Resolved crash in `composeText` when converting colorArgb (0xFFFFFFFF) from Int64 to UInt32
+  - Changed from unsafe `Int64 → Int32 → UInt32` conversion to idiomatic `UInt32(truncatingIfNeeded:)`
+  - Fixes "Fatal error: Not enough bits to represent the passed value" crash
+- **iOS**: Fixed text watermark clipping on right side
+  - Improved canvas size calculation using `CTLineGetImageBounds` in addition to `CTLineGetTypographicBounds`
+  - Ensures glyphs with italic, kerning, or ligatures are not clipped
+  - Increased padding from 4.0 to 8.0 for safety margin
+
 ## 2.1.0
 
 Improved
