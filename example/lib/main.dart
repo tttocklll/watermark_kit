@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:video_player/video_player.dart';
 import 'package:watermark_kit/watermark_kit.dart';
+import 'package:gal/gal.dart';
 
 void main() {
   runApp(const MyApp());
@@ -224,7 +225,18 @@ class _MyAppState extends State<MyApp> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Result', style: TextStyle(fontWeight: FontWeight.bold)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Result', style: TextStyle(fontWeight: FontWeight.bold)),
+                if (_resultImage != null)
+                  ElevatedButton.icon(
+                    onPressed: _saveResultToGallery,
+                    icon: const Icon(Icons.download),
+                    label: const Text('Save to Gallery'),
+                  ),
+              ],
+            ),
             const SizedBox(height: 8),
             AspectRatio(
               aspectRatio: 3 / 2,
@@ -426,6 +438,35 @@ class _MyAppState extends State<MyApp> {
   Future<void> _loadSampleWatermark() async {
     final wmPng = await _generateSampleWatermarkPng(300, 140);
     setState(() => _watermarkImage = wmPng);
+  }
+
+  Future<void> _saveResultToGallery() async {
+    if (_resultImage == null) return;
+    try {
+      // Request permission
+      final hasAccess = await Gal.hasAccess();
+      if (!hasAccess) {
+        final granted = await Gal.requestAccess();
+        if (!granted) {
+          if (!mounted) return;
+          _showSnack('Permission denied');
+          return;
+        }
+      }
+
+      final dir = await getTemporaryDirectory();
+      final ext = _format == 'png' ? 'png' : 'jpg';
+      final tempFile = File('${dir.path}/watermarked_${DateTime.now().millisecondsSinceEpoch}.$ext');
+      await tempFile.writeAsBytes(_resultImage!);
+
+      await Gal.putImage(tempFile.path);
+
+      if (!mounted) return;
+      _showSnack('Image saved to gallery successfully');
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('Failed to save image: $e');
+    }
   }
 }
 
