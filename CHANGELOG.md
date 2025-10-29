@@ -1,3 +1,16 @@
+## 2.1.0
+
+Improved
+- **Android & iOS**: Significantly enhanced watermark quality for both images and videos
+  - **Android**: High-quality filtering (FILTER_BITMAP_FLAG, DITHER_FLAG) with Matrix-based scaling for images; mipmaps + trilinear filtering (GL_LINEAR_MIPMAP_LINEAR) for video watermarks
+  - **iOS**: CILanczosScaleTransform for superior quality scaling (replaces simple CGAffineTransform); highQualityDownsample option added to CIContext
+  - Results in sharper, smoother watermarks with better detail preservation and anti-aliasing
+
+Example
+- Add save to gallery feature: users can now save watermarked images directly to their device photo library
+  - Cross-platform implementation using `gal` package with proper permission handling
+  - "Save to Gallery" button added to Result preview card
+
 ## 2.0.0
 
 Added
