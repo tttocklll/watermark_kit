@@ -289,7 +289,10 @@ final class VideoWatermarkProcessor {
     // Prefer watermarkImage; fallback to text
     if let data = request.watermarkImage?.data, !data.isEmpty {
       if let decoded = decodeAnimatedCIImages(from: data) {
-        let prepared = decoded.frames.map { prepareOverlayFrame($0, request: request, baseWidth: baseWidth, baseHeight: baseHeight) }
+        let targetW = max(1.0, baseWidth * CGFloat(request.widthPercent))
+        let refWidth = decoded.canvasWidth ?? decoded.frames.first?.extent.width ?? 1.0
+        let scale = targetW / max(1.0, refWidth)
+        let prepared = decoded.frames.map { prepareOverlayFrame($0, request: request, baseWidth: baseWidth, baseHeight: baseHeight, scaleOverride: scale) }
         let durations = sanitizeDurations(decoded.durations, count: prepared.count)
         let cumulative = cumulativeDurations(durations)
         let total = cumulative.last ?? 0.0
@@ -320,6 +323,7 @@ final class VideoWatermarkProcessor {
   private struct AnimatedDecodeResult {
     let frames: [CIImage]
     let durations: [Double]
+    let canvasWidth: CGFloat?
   }
 
   private static func decodeAnimatedCIImages(from data: Data) -> AnimatedDecodeResult? {
@@ -328,6 +332,8 @@ final class VideoWatermarkProcessor {
     if count <= 1 { return nil }
     var frames: [CIImage] = []
     var durations: [Double] = []
+    let srcProps = CGImageSourceCopyProperties(source, nil) as? [CFString: Any]
+    var canvasWidth: CGFloat? = numberValue(srcProps?[kCGImagePropertyPixelWidth]).map { CGFloat($0) }
     for i in 0..<count {
       let options: [CFString: Any] = [
         kCGImageSourceShouldCache: true,
@@ -336,13 +342,16 @@ final class VideoWatermarkProcessor {
       guard let cg = CGImageSourceCreateImageAtIndex(source, i, options as CFDictionary) else { continue }
       frames.append(CIImage(cgImage: cg, options: [.applyOrientationProperty: true]))
       let props = CGImageSourceCopyPropertiesAtIndex(source, i, nil) as? [CFString: Any]
+      if canvasWidth == nil {
+        canvasWidth = numberValue(props?[kCGImagePropertyPixelWidth]).map { CGFloat($0) }
+      }
       let gif = props?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
       let unclamped = numberValue(gif?[kCGImagePropertyGIFUnclampedDelayTime])
       let delay = unclamped ?? numberValue(gif?[kCGImagePropertyGIFDelayTime])
       durations.append(delay ?? 0.1)
     }
     if frames.count <= 1 { return nil }
-    return AnimatedDecodeResult(frames: frames, durations: durations)
+    return AnimatedDecodeResult(frames: frames, durations: durations, canvasWidth: canvasWidth)
   }
 
   private static func numberValue(_ value: Any?) -> Double? {
@@ -374,11 +383,11 @@ final class VideoWatermarkProcessor {
     return out
   }
 
-  private static func prepareOverlayFrame(_ image: CIImage, request: ComposeVideoRequest, baseWidth: CGFloat, baseHeight: CGFloat) -> CIImage {
+  private static func prepareOverlayFrame(_ image: CIImage, request: ComposeVideoRequest, baseWidth: CGFloat, baseHeight: CGFloat, scaleOverride: CGFloat? = nil) -> CIImage {
     // Scale by widthPercent of base width using high-quality Lanczos
     let targetW = max(1.0, baseWidth * CGFloat(request.widthPercent))
     let extent = image.extent
-    let scale = targetW / max(1.0, extent.width)
+    let scale = scaleOverride ?? (targetW / max(1.0, extent.width))
     let scaled = scaleCIImageHighQuality(image, scale: scale)
     // Apply opacity
     let alphaVec = CIVector(x: 0, y: 0, z: 0, w: CGFloat(request.opacity))

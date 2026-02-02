@@ -608,7 +608,7 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
     data class Animated(override val info: OverlayInfo, override val texId: Int, val animator: GifAnimator) : OverlaySource()
   }
 
-  private data class GifAnimator(
+  private class GifAnimator(
     val movie: Movie,
     val bitmap: Bitmap,
     val canvas: Canvas,
