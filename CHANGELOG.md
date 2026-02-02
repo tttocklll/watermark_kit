@@ -1,3 +1,9 @@
+## 2.2.0
+
+Added
+- **iOS & Android**: Animated GIF watermark support for video composition (per-frame overlay timing).
+- Example app: added a bundled sample GIF for video watermark testing.
+
 ## 2.1.1
 
 Fixed

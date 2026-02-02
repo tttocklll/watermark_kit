@@ -607,16 +607,24 @@ class _VideoTabState extends State<_VideoTab> {
                 onChanged: (v) => _wmText = v,
               )
             else
-              Row(children: [
-                ElevatedButton.icon(
-                  onPressed: _pickWmImage,
-                  icon: const Icon(Icons.image),
-                  label: const Text('Pick Watermark Image'),
-                ),
-                const SizedBox(width: 8),
-                if (_wmImage != null)
-                  SizedBox(width: 64, height: 64, child: Image.memory(_wmImage!, fit: BoxFit.contain)),
-              ]),
+              Wrap(
+                spacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _pickWmImage,
+                    icon: const Icon(Icons.image),
+                    label: const Text('Pick Watermark Image'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _loadSampleGif,
+                    icon: const Icon(Icons.auto_awesome_motion),
+                    label: const Text('Load Sample GIF'),
+                  ),
+                  if (_wmImage != null)
+                    SizedBox(width: 64, height: 64, child: Image.memory(_wmImage!, fit: BoxFit.contain)),
+                ],
+              ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -724,6 +732,15 @@ class _VideoTabState extends State<_VideoTab> {
       });
     } catch (e) {
       _snack('Pick watermark failed: $e');
+    }
+  }
+
+  Future<void> _loadSampleGif() async {
+    try {
+      final data = await rootBundle.load('assets/wm.gif');
+      setState(() => _wmImage = data.buffer.asUint8List());
+    } catch (e) {
+      _snack('Load sample GIF failed: $e');
     }
   }
 
