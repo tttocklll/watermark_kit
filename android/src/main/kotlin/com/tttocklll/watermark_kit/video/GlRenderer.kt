@@ -245,6 +245,13 @@ internal class GlRenderer {
     return id
   }
 
+  fun update2DTextureFromBitmap(textureId: Int, bmp: android.graphics.Bitmap) {
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
+    GLUtils.texSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, bmp)
+    GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0)
+  }
+
   private fun genExternalTexture(): Int {
     val tex = IntArray(1)
     GLES20.glGenTextures(1, tex, 0)

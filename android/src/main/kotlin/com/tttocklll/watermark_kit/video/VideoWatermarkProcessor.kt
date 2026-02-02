@@ -1,7 +1,12 @@
 package com.tttocklll.watermark_kit.video
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Movie
+import android.graphics.PorterDuff
 import android.media.*
 import android.net.Uri
 import android.os.Handler
@@ -90,14 +95,14 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
     val displayH = if (rotation % 180 != 0) srcW else srcH
 
     val encWH = chooseEncodeSize(displayW, displayH, req.maxLongSide?.toInt())
-    val encW = encWH.first; val encH = encWH.second
+    var encW = encWH.first
+    var encH = encWH.second
     val fpsGuess = guessFps(vFmt)
-    val bitrate = (req.bitrateBps?.toInt() ?: estimateBitrate(encW, encH, fpsGuess))
     val videoCodec = when (req.codec) {
       VideoCodec.HEVC -> "video/hevc"
       else -> "video/avc"
     }
-    WMLog.d("Encode cfg: $videoCodec ${encW}x${encH} fps=${fpsGuess} br=${bitrate}")
+    var bitrate = (req.bitrateBps?.toInt() ?: estimateBitrate(encW, encH, fpsGuess))
     if (!isCodecAvailable(videoCodec)) {
       if (req.codec == VideoCodec.HEVC && isCodecAvailable("video/avc")) {
         // fallback to AVC
@@ -117,17 +122,44 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
       audioTrackIndexMuxer = muxer.addTrack(aFmt)
     }
 
-    // Encoder config
-    val encFmt = MediaFormat.createVideoFormat(videoCodec, encW, encH).apply {
-      setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-      setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
-      setInteger(MediaFormat.KEY_FRAME_RATE, max(1, (req.maxFps ?: fpsGuess).toInt()))
-      setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-      try { setInteger("profile", MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline) } catch (_: Throwable) {}
-      try { setInteger("level", MediaCodecInfo.CodecProfileLevel.AVCLevel31) } catch (_: Throwable) {}
+    // Encoder config (with fallback size if configure fails)
+    val targetFps = max(1, (req.maxFps ?: fpsGuess).toInt())
+    val candidateSizes = mutableListOf<Pair<Int, Int>>()
+    candidateSizes.add(encW to encH)
+    for (ls in listOf(1920, 1280, 720)) {
+      val sz = chooseEncodeSize(displayW, displayH, ls)
+      if (!candidateSizes.contains(sz)) candidateSizes.add(sz)
     }
-    val encoder = createEncoderPreferSoftware(videoCodec) ?: MediaCodec.createEncoderByType(videoCodec)
-    encoder.configure(encFmt, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+    var encoder: MediaCodec? = null
+    var lastErr: Throwable? = null
+    for (sz in candidateSizes) {
+      val w = sz.first
+      val h = sz.second
+      val br = (req.bitrateBps?.toInt() ?: estimateBitrate(w, h, fpsGuess))
+      val encFmt = MediaFormat.createVideoFormat(videoCodec, w, h).apply {
+        setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+        setInteger(MediaFormat.KEY_BIT_RATE, br)
+        setInteger(MediaFormat.KEY_FRAME_RATE, targetFps)
+        setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+        try { setInteger("profile", MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline) } catch (_: Throwable) {}
+        try { setInteger("level", MediaCodecInfo.CodecProfileLevel.AVCLevel31) } catch (_: Throwable) {}
+      }
+      val enc = createEncoderPreferSoftware(videoCodec) ?: MediaCodec.createEncoderByType(videoCodec)
+      try {
+        enc.configure(encFmt, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        encoder = enc
+        encW = w
+        encH = h
+        bitrate = br
+        break
+      } catch (t: Throwable) {
+        lastErr = t
+        try { enc.release() } catch (_: Throwable) {}
+      }
+    }
+    val encoderConfigured = encoder != null
+    if (!encoderConfigured) throw lastErr ?: RuntimeException("Encoder configure failed")
+    WMLog.d("Encode cfg: $videoCodec ${encW}x${encH} fps=${fpsGuess} br=${bitrate}")
     val inputSurface = encoder.createInputSurface()
     encoder.start()
 
@@ -137,13 +169,8 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
     gl.setEncoderSurface(inputSurface)
     gl.makeCurrent()
 
-    // Overlay texture
-    val overlayInfo = prepareOverlay(req, displayW, displayH)
-    val overlayTexId = overlayInfo?.let { bmp ->
-      val id = gl.create2DTextureFromBitmap(bmp.bitmap)
-      bmp.bitmap.recycle()
-      id
-    } ?: -1
+    // Overlay (static or animated)
+    val overlay = prepareOverlay(gl, req, encW, encH)
 
     // Decoder to Surface
     // Prepare decoder with fallback for Dolby Vision → HEVC when necessary
@@ -247,8 +274,12 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
             // Draw into encoder surface
             gl.makeCurrent()
             gl.drawVideoFrame(stMatrix, rotation, encW, encH)
-            overlayInfo?.let { ov ->
-              gl.drawOverlay(ov.posX, ov.posY, ov.wPx, ov.hPx, encW, encH, overlayTexId, req.opacity.toFloat())
+            overlay?.let { ov ->
+              if (ov is OverlaySource.Animated) {
+                ov.animator.update(gl, ov.texId, info.presentationTimeUs)
+              }
+              val info = ov.info
+              gl.drawOverlay(info.posX, info.posY, info.wPx, info.hPx, encW, encH, ov.texId, req.opacity.toFloat())
             }
             gl.setPresentationTime(info.presentationTimeUs * 1000)
             renderedFrames++
@@ -308,6 +339,7 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
       val elapsed = SystemClock.elapsedRealtime() - surfaceStartMs
       if (!muxerStarted && (renderedFrames >= 60 || elapsed > 3000) && encoderFrames == 0 && !signaledEncoderEOS) {
         WMLog.w("Surface path stalled (rendered=$renderedFrames, encoded=$encoderFrames). Falling back to ByteBuffer decode.")
+        if (overlay is OverlaySource.Animated) overlay.animator.recycle()
         try { decoder.stop(); decoder.release() } catch (_: Throwable) {}
         try { encoder.stop(); encoder.release() } catch (_: Throwable) {}
         // Use same muxer (not started yet) and audioExtractor
@@ -356,6 +388,7 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
     muxer.release()
     audioExtractor.release()
     extractor.release()
+    if (overlay is OverlaySource.Animated) overlay.animator.recycle()
     gl.release()
 
     if (task.cancelled) {
@@ -422,8 +455,7 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
     val durationUs = vFmt.getLong(MediaFormat.KEY_DURATION, 1_000_000L)
 
     // Precompute overlay for output size
-    val overlay = prepareOverlay(req, encW, encH)
-    val overlayTexId = overlay?.let { gl.create2DTextureFromBitmap(it.bitmap) }
+    val overlay = prepareOverlay(gl, req, encW, encH)
 
     while (!sawOutputEOS) {
       if (!sawInputEOS) {
@@ -461,7 +493,11 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
 
             gl.drawYuvFrame(yBuf, uBuf, vBuf, image.width, image.width / 2, image.width / 2, image.width, image.height, rotation, encW, encH)
             overlay?.let { ov ->
-              overlayTexId?.let { tid -> gl.drawOverlay(ov.posX, ov.posY, ov.wPx, ov.hPx, encW, encH, tid, req.opacity.toFloat()) }
+              if (ov is OverlaySource.Animated) {
+                ov.animator.update(gl, ov.texId, info.presentationTimeUs)
+              }
+              val info = ov.info
+              gl.drawOverlay(info.posX, info.posY, info.wPx, info.hPx, encW, encH, ov.texId, req.opacity.toFloat())
             }
             image.close()
 
@@ -522,6 +558,7 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
     }
     encoder.stop(); encoder.release()
     muxer.stop(); muxer.release()
+    if (overlay is OverlaySource.Animated) overlay.animator.recycle()
 
     val res = ComposeVideoResult(req.taskId!!, req.outputVideoPath ?: "", encW.toLong(), encH.toLong(), max(1, (durationUs / 1000).toInt()).toLong(), req.codec)
     safeCompleted(callbacks, res)
@@ -561,9 +598,40 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
     return v to a
   }
 
-  private data class Overlay(val bitmap: android.graphics.Bitmap, val posX: Float, val posY: Float, val wPx: Float, val hPx: Float)
+  private data class OverlayInfo(val posX: Float, val posY: Float, val wPx: Float, val hPx: Float)
 
-  private fun prepareOverlay(req: ComposeVideoRequest, baseW: Int, baseH: Int): Overlay? {
+  private sealed class OverlaySource {
+    abstract val info: OverlayInfo
+    abstract val texId: Int
+
+    data class Static(override val info: OverlayInfo, override val texId: Int) : OverlaySource()
+    data class Animated(override val info: OverlayInfo, override val texId: Int, val animator: GifAnimator) : OverlaySource()
+  }
+
+  private data class GifAnimator(
+    val movie: Movie,
+    val bitmap: Bitmap,
+    val canvas: Canvas,
+    val durationMs: Int,
+    var lastTimeMs: Int = -1
+  ) {
+    fun update(gl: GlRenderer, texId: Int, timeUs: Long) {
+      val duration = if (durationMs > 0) durationMs else 1000
+      val t = ((timeUs / 1000) % duration).toInt()
+      if (t == lastTimeMs) return
+      lastTimeMs = t
+      canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+      movie.setTime(t)
+      movie.draw(canvas, 0f, 0f)
+      gl.update2DTextureFromBitmap(texId, bitmap)
+    }
+
+    fun recycle() {
+      if (!bitmap.isRecycled) bitmap.recycle()
+    }
+  }
+
+  private fun prepareOverlay(gl: GlRenderer, req: ComposeVideoRequest, baseW: Int, baseH: Int): OverlaySource? {
     val overlayBytes = when {
       req.watermarkImage != null && req.watermarkImage!!.isNotEmpty() -> req.watermarkImage!!
       req.text != null && req.text!!.isNotBlank() -> {
@@ -579,13 +647,40 @@ internal class VideoWatermarkProcessor(private val appContext: Context) {
       }
       else -> null
     } ?: return null
+    val animated = decodeAnimatedGif(overlayBytes)
+    if (animated != null) {
+      val info = computeOverlayInfo(baseW, baseH, animated.bitmap.width, animated.bitmap.height, req)
+      val texId = gl.create2DTextureFromBitmap(animated.bitmap)
+      return OverlaySource.Animated(info, texId, animated)
+    }
     val bmp = BitmapFactory.decodeByteArray(overlayBytes, 0, overlayBytes.size) ?: return null
+    val info = computeOverlayInfo(baseW, baseH, bmp.width, bmp.height, req)
+    val texId = gl.create2DTextureFromBitmap(bmp)
+    bmp.recycle()
+    return OverlaySource.Static(info, texId)
+  }
+
+  private fun computeOverlayInfo(baseW: Int, baseH: Int, srcW: Int, srcH: Int, req: ComposeVideoRequest): OverlayInfo {
     val wTarget = (baseW * req.widthPercent).toFloat().coerceAtLeast(1f)
-    val scale = wTarget / max(1, bmp.width)
-    val wmW = (bmp.width * scale)
-    val wmH = (bmp.height * scale)
+    val scale = wTarget / max(1, srcW)
+    val wmW = (srcW * scale)
+    val wmH = (srcH * scale)
     val pos = AnchorUtil.computePosition(baseW, baseH, wmW.toInt(), wmH.toInt(), req.anchor, req.margin, req.marginUnit, req.offsetX, req.offsetY, req.offsetUnit)
-    return Overlay(bmp, pos.x, pos.y, wmW, wmH)
+    return OverlayInfo(pos.x, pos.y, wmW, wmH)
+  }
+
+  private fun decodeAnimatedGif(bytes: ByteArray): GifAnimator? {
+    val movie = Movie.decodeByteArray(bytes, 0, bytes.size) ?: return null
+    val w = movie.width()
+    val h = movie.height()
+    if (w <= 0 || h <= 0) return null
+    val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+    movie.setTime(0)
+    movie.draw(canvas, 0f, 0f)
+    val duration = movie.duration().takeIf { it > 0 } ?: 1000
+    return GifAnimator(movie, bitmap, canvas, duration)
   }
 
   private fun guessFps(fmt: MediaFormat): Double {
