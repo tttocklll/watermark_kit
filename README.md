@@ -130,6 +130,7 @@ Notes:
 - Default codec is H.264; set `codec: 'hevc'` when supported by the device.
 - Audio is passed through on a best‑effort basis.
 - Anchors apply to the displayed orientation (rotation is handled internally on both iOS and Android).
+- iOS video watermarking supports animated GIF overlays; Android currently uses the first frame (static) when a GIF is provided.
 - See the example app’s “Video” tab for end‑to‑end usage.
 
 ## API Reference
@@ -183,7 +184,7 @@ Returns: `Uint8List` — encoded output image.
 
 ## Example App
 
-`example/` includes a minimal UI that lets you pick a base image and a watermark image, tweak options, and preview the result. It is intended for manual testing and does not represent best-practice UI.
+`example/` includes a minimal UI that lets you pick a base image and a watermark image, tweak options, and preview the result. It also includes a sample GIF in the Video tab for testing animated watermarking on iOS. It is intended for manual testing and does not represent best-practice UI.
 
 ## Development
 

@@ -7,6 +7,27 @@ import ImageIO
 final class VideoWatermarkProcessor {
   private let queue = DispatchQueue(label: "wm.video", qos: .userInitiated)
 
+  private enum OverlaySource {
+    case staticImage(CIImage)
+    case animated(AnimatedOverlay)
+  }
+
+  private struct AnimatedOverlay {
+    let frames: [CIImage]
+    let cumulativeDurations: [Double]
+    let totalDuration: Double
+
+    func image(at time: Double) -> CIImage? {
+      guard !frames.isEmpty else { return nil }
+      if totalDuration <= 0 {
+        return frames[0]
+      }
+      let t = time.truncatingRemainder(dividingBy: totalDuration)
+      let idx = cumulativeDurations.firstIndex(where: { t < $0 }) ?? (frames.count - 1)
+      return frames[idx]
+    }
+  }
+
   private final class TaskState {
     var cancelled = false
     let request: ComposeVideoRequest
@@ -74,8 +95,8 @@ final class VideoWatermarkProcessor {
     let t = videoTrack.preferredTransform
     let display = CGSize(width: abs(natural.applying(t).width), height: abs(natural.applying(t).height))
 
-    // Prepare overlay CIImage once
-    let overlayCI: CIImage? = try Self.prepareOverlayCI(request: request, plugin: plugin, baseWidth: display.width, baseHeight: display.height)
+    // Prepare overlay source (static or animated)
+    let overlaySource: OverlaySource? = try Self.prepareOverlaySource(request: request, plugin: plugin, baseWidth: display.width, baseHeight: display.height)
 
     let reader = try AVAssetReader(asset: asset)
     let videoReaderOutput = AVAssetReaderTrackOutput(track: videoTrack, outputSettings: [
@@ -143,32 +164,34 @@ final class VideoWatermarkProcessor {
 
     let ciContext = plugin.sharedCIContext
 
-    // Precompute overlay with opacity and translation in display coordinates
-    let preparedOverlay: CIImage? = {
-      guard let ov = overlayCI else { return nil }
-      // Apply opacity
-      let alphaVec = CIVector(x: 0, y: 0, z: 0, w: CGFloat(request.opacity))
-      let withOpacity = ov.applyingFilter("CIColorMatrix", parameters: ["inputAVector": alphaVec])
-      // Compute position
-      let baseRect = CGRect(x: 0, y: 0, width: display.width, height: display.height)
-      let wmRect = withOpacity.extent
-      let marginX = (request.marginUnit == .percent) ? CGFloat(request.margin) * display.width : CGFloat(request.margin)
-      let marginY = (request.marginUnit == .percent) ? CGFloat(request.margin) * display.height : CGFloat(request.margin)
-      var pos = Self.positionRect(base: baseRect, overlay: wmRect, anchor: request.anchor, marginX: marginX, marginY: marginY)
-      let dx = (request.offsetUnit == .percent) ? CGFloat(request.offsetX) * display.width : CGFloat(request.offsetX)
-      let dy = (request.offsetUnit == .percent) ? CGFloat(request.offsetY) * display.height : CGFloat(request.offsetY)
-      pos.x += dx
-      pos.y += dy
-      return withOpacity.transformed(by: CGAffineTransform(translationX: floor(pos.x), y: floor(pos.y)))
-    }()
+    let staticOverlay: CIImage?
+    let animatedOverlay: AnimatedOverlay?
+    switch overlaySource {
+    case .staticImage(let img):
+      staticOverlay = img
+      animatedOverlay = nil
+    case .animated(let anim):
+      staticOverlay = nil
+      animatedOverlay = anim
+    case nil:
+      staticOverlay = nil
+      animatedOverlay = nil
+    }
 
     // Processing loop
     var lastPTS = CMTime.zero
+    var lastTimeSec: Double = -1.0
+    var frameIndex: Int64 = 0
+    let fallbackFps = max(1.0, Double(videoTrack.nominalFrameRate > 0 ? videoTrack.nominalFrameRate : 30.0))
     while reader.status == .reading && !state.cancelled {
       autoreleasepool {
         if videoInput.isReadyForMoreMediaData, let sample = videoReaderOutput.copyNextSampleBuffer() {
-          let pts = CMSampleBufferGetPresentationTimeStamp(sample)
+          let pts = Self.sampleTime(sample, fallbackFps: fallbackFps, frameIndex: frameIndex, lastTimeSeconds: lastTimeSec)
           lastPTS = pts
+          let ptsSec = CMTimeGetSeconds(pts)
+          if ptsSec.isFinite {
+            lastTimeSec = ptsSec
+          }
           guard let pool = adaptor.pixelBufferPool else { return }
           var pb: CVPixelBuffer? = nil
           CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &pb)
@@ -178,7 +201,8 @@ final class VideoWatermarkProcessor {
           if let srcPB = CMSampleBufferGetImageBuffer(sample) {
             let base = CIImage(cvPixelBuffer: srcPB)
             let output: CIImage
-            if let overlay = preparedOverlay {
+            let overlay = animatedOverlay?.image(at: CMTimeGetSeconds(pts)) ?? staticOverlay
+            if let overlay = overlay {
               // Source-over
               let filter = CIFilter(name: "CISourceOverCompositing")!
               filter.setValue(overlay, forKey: kCIInputImageKey)
@@ -194,6 +218,7 @@ final class VideoWatermarkProcessor {
           // Progress
           let p = max(0.0, min(1.0, CMTimeGetSeconds(pts) / max(0.001, duration)))
           callbacks.onVideoProgress(taskId: taskId, progress: p, etaSec: max(0.0, duration - CMTimeGetSeconds(pts))) { _ in }
+          frameIndex += 1
         } else {
           // Back off a little
           usleep(2000)
@@ -260,15 +285,21 @@ final class VideoWatermarkProcessor {
     return max(500_000, Int(br))
   }
 
-  private static func prepareOverlayCI(request: ComposeVideoRequest, plugin: WatermarkKitPlugin, baseWidth: CGFloat, baseHeight: CGFloat) throws -> CIImage? {
+  private static func prepareOverlaySource(request: ComposeVideoRequest, plugin: WatermarkKitPlugin, baseWidth: CGFloat, baseHeight: CGFloat) throws -> OverlaySource? {
     // Prefer watermarkImage; fallback to text
     if let data = request.watermarkImage?.data, !data.isEmpty {
+      if let decoded = decodeAnimatedCIImages(from: data) {
+        let prepared = decoded.frames.map { prepareOverlayFrame($0, request: request, baseWidth: baseWidth, baseHeight: baseHeight) }
+        let durations = sanitizeDurations(decoded.durations, count: prepared.count)
+        let cumulative = cumulativeDurations(durations)
+        let total = cumulative.last ?? 0.0
+        if !prepared.isEmpty {
+          return .animated(AnimatedOverlay(frames: prepared, cumulativeDurations: cumulative, totalDuration: total))
+        }
+      }
       guard let src = decodeCIImage(from: data) else { return nil }
-      // Scale by widthPercent of base width using high-quality Lanczos
-      let targetW = max(1.0, baseWidth * CGFloat(request.widthPercent))
-      let extent = src.extent
-      let scale = targetW / max(1.0, extent.width)
-      return scaleCIImageHighQuality(src, scale: scale)
+      let prepared = prepareOverlayFrame(src, request: request, baseWidth: baseWidth, baseHeight: baseHeight)
+      return .staticImage(prepared)
     }
     if let text = request.text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       let fontFamily = ".SFUI"
@@ -280,12 +311,104 @@ final class VideoWatermarkProcessor {
       }
       let png = WatermarkKitPlugin.encodePNG(cgImage: cg) ?? Data()
       guard let src = decodeCIImage(from: png) else { return nil }
-      let targetW = max(1.0, baseWidth * CGFloat(request.widthPercent))
-      let extent = src.extent
-      let scale = targetW / max(1.0, extent.width)
-      return scaleCIImageHighQuality(src, scale: scale)
+      let prepared = prepareOverlayFrame(src, request: request, baseWidth: baseWidth, baseHeight: baseHeight)
+      return .staticImage(prepared)
     }
     return nil
+  }
+
+  private struct AnimatedDecodeResult {
+    let frames: [CIImage]
+    let durations: [Double]
+  }
+
+  private static func decodeAnimatedCIImages(from data: Data) -> AnimatedDecodeResult? {
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+    let count = CGImageSourceGetCount(source)
+    if count <= 1 { return nil }
+    var frames: [CIImage] = []
+    var durations: [Double] = []
+    for i in 0..<count {
+      let options: [CFString: Any] = [
+        kCGImageSourceShouldCache: true,
+        kCGImageSourceShouldCacheImmediately: true
+      ]
+      guard let cg = CGImageSourceCreateImageAtIndex(source, i, options as CFDictionary) else { continue }
+      frames.append(CIImage(cgImage: cg, options: [.applyOrientationProperty: true]))
+      let props = CGImageSourceCopyPropertiesAtIndex(source, i, nil) as? [CFString: Any]
+      let gif = props?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
+      let unclamped = numberValue(gif?[kCGImagePropertyGIFUnclampedDelayTime])
+      let delay = unclamped ?? numberValue(gif?[kCGImagePropertyGIFDelayTime])
+      durations.append(delay ?? 0.1)
+    }
+    if frames.count <= 1 { return nil }
+    return AnimatedDecodeResult(frames: frames, durations: durations)
+  }
+
+  private static func numberValue(_ value: Any?) -> Double? {
+    if let d = value as? Double { return d }
+    if let n = value as? NSNumber { return n.doubleValue }
+    return nil
+  }
+
+  private static func sanitizeDurations(_ durations: [Double], count: Int) -> [Double] {
+    let defaultDur = 0.1
+    var out: [Double] = []
+    out.reserveCapacity(count)
+    for i in 0..<count {
+      let d = i < durations.count ? durations[i] : defaultDur
+      let value = (d.isFinite && d >= 0.02) ? d : defaultDur
+      out.append(value)
+    }
+    return out
+  }
+
+  private static func cumulativeDurations(_ durations: [Double]) -> [Double] {
+    var total = 0.0
+    var out: [Double] = []
+    out.reserveCapacity(durations.count)
+    for d in durations {
+      total += d
+      out.append(total)
+    }
+    return out
+  }
+
+  private static func prepareOverlayFrame(_ image: CIImage, request: ComposeVideoRequest, baseWidth: CGFloat, baseHeight: CGFloat) -> CIImage {
+    // Scale by widthPercent of base width using high-quality Lanczos
+    let targetW = max(1.0, baseWidth * CGFloat(request.widthPercent))
+    let extent = image.extent
+    let scale = targetW / max(1.0, extent.width)
+    let scaled = scaleCIImageHighQuality(image, scale: scale)
+    // Apply opacity
+    let alphaVec = CIVector(x: 0, y: 0, z: 0, w: CGFloat(request.opacity))
+    let withOpacity = scaled.applyingFilter("CIColorMatrix", parameters: ["inputAVector": alphaVec])
+    // Compute position
+    let baseRect = CGRect(x: 0, y: 0, width: baseWidth, height: baseHeight)
+    let wmRect = withOpacity.extent
+    let marginX = (request.marginUnit == .percent) ? CGFloat(request.margin) * baseWidth : CGFloat(request.margin)
+    let marginY = (request.marginUnit == .percent) ? CGFloat(request.margin) * baseHeight : CGFloat(request.margin)
+    var pos = Self.positionRect(base: baseRect, overlay: wmRect, anchor: request.anchor, marginX: marginX, marginY: marginY)
+    let dx = (request.offsetUnit == .percent) ? CGFloat(request.offsetX) * baseWidth : CGFloat(request.offsetX)
+    let dy = (request.offsetUnit == .percent) ? CGFloat(request.offsetY) * baseHeight : CGFloat(request.offsetY)
+    pos.x += dx
+    pos.y += dy
+    return withOpacity.transformed(by: CGAffineTransform(translationX: floor(pos.x), y: floor(pos.y)))
+  }
+
+  private static func sampleTime(_ sample: CMSampleBuffer, fallbackFps: Double, frameIndex: Int64, lastTimeSeconds: Double) -> CMTime {
+    let outputPts = CMSampleBufferGetOutputPresentationTimeStamp(sample)
+    let candidate = outputPts.isValid ? outputPts : CMSampleBufferGetPresentationTimeStamp(sample)
+    let secs = CMTimeGetSeconds(candidate)
+    if secs.isFinite && secs >= 0 {
+      if frameIndex > 0 && secs <= lastTimeSeconds + 0.000001 {
+        let fallback = Double(frameIndex) / max(1.0, fallbackFps)
+        return CMTime(seconds: fallback, preferredTimescale: 600)
+      }
+      return candidate
+    }
+    let fallback = Double(frameIndex) / max(1.0, fallbackFps)
+    return CMTime(seconds: fallback, preferredTimescale: 600)
   }
 
   private static func scaleCIImageHighQuality(_ image: CIImage, scale: CGFloat) -> CIImage {
