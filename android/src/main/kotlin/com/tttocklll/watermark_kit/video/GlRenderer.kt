@@ -8,6 +8,7 @@ import kotlin.math.sin
 
 internal class GlRenderer {
   private var display: EGLDisplay? = null
+  private var config: EGLConfig? = null
   private var context: EGLContext? = null
   private var encoderSurface: EGLSurface? = null
   private var oesTexId: Int = -1
@@ -26,19 +27,29 @@ internal class GlRenderer {
     val version = IntArray(2)
     EGL14.eglInitialize(display, version, 0, version, 1)
 
+    // EGL_RECORDABLE_ANDROID (0x3142) ensures the config is compatible with
+    // MediaCodec encoder input surfaces. EGL_SURFACE_TYPE with EGL_WINDOW_BIT
+    // ensures the config supports window surfaces (not just PBuffer).
+    // Storing the config guarantees that context and surface use the same
+    // EGLConfig, preventing EGL_BAD_MATCH on devices like Pixel 10 XL (Tensor G5).
+    val EGL_RECORDABLE_ANDROID = 0x3142
     val attribList = intArrayOf(
       EGL14.EGL_RED_SIZE, 8,
       EGL14.EGL_GREEN_SIZE, 8,
       EGL14.EGL_BLUE_SIZE, 8,
+      EGL14.EGL_ALPHA_SIZE, 8,
       EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
+      EGL14.EGL_SURFACE_TYPE, EGL14.EGL_WINDOW_BIT or EGL14.EGL_PBUFFER_BIT,
+      EGL_RECORDABLE_ANDROID, 1,
       EGL14.EGL_NONE
     )
     val configs = arrayOfNulls<EGLConfig>(1)
     val num = IntArray(1)
     EGL14.eglChooseConfig(display, attribList, 0, configs, 0, configs.size, num, 0)
+    config = configs[0]
 
     val ctxAttribs = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
-    context = EGL14.eglCreateContext(display, configs[0], EGL14.EGL_NO_CONTEXT, ctxAttribs, 0)
+    context = EGL14.eglCreateContext(display, config, EGL14.EGL_NO_CONTEXT, ctxAttribs, 0)
     makeNothingCurrent()
   }
 
@@ -67,18 +78,11 @@ internal class GlRenderer {
   }
 
   fun setEncoderSurface(inputSurface: Surface) {
-    val cfgAttribs = intArrayOf(
-      EGL14.EGL_RED_SIZE, 8,
-      EGL14.EGL_GREEN_SIZE, 8,
-      EGL14.EGL_BLUE_SIZE, 8,
-      EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-      EGL14.EGL_NONE
-    )
-    val configs = arrayOfNulls<EGLConfig>(1)
-    val num = IntArray(1)
-    EGL14.eglChooseConfig(display, cfgAttribs, 0, configs, 0, 1, num, 0)
+    // Reuse the same EGLConfig from init() to avoid EGL_BAD_MATCH.
+    // Previously, a second eglChooseConfig() call could return a different config
+    // that was incompatible with the context created in init().
     val attrs = intArrayOf(EGL14.EGL_NONE)
-    encoderSurface = EGL14.eglCreateWindowSurface(display, configs[0], inputSurface, attrs, 0)
+    encoderSurface = EGL14.eglCreateWindowSurface(display, config, inputSurface, attrs, 0)
     // Make current and lazily build programs and external texture
     makeCurrent()
     progOes = ShaderPrograms.buildExternalOes()
