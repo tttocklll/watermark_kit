@@ -1,3 +1,10 @@
+## 2.2.1
+
+Fixed
+- **iOS**: Deliver video progress/completion/error Pigeon callbacks on the main queue (required for Flutter platform channels).
+- **iOS**: End video processing when `copyNextSampleBuffer()` returns nil for video/audio tracks instead of spinning while `reader.status` stays `.reading` (fixes hangs near end of export, especially with audio passthrough).
+- **iOS**: Throttle progress callbacks (~250ms) and cap audio drain wait to avoid stalled writer loops.
+
 ## 2.2.0
 
 Added

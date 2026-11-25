@@ -32,6 +32,7 @@ final class VideoWatermarkProcessor {
     var cancelled = false
     let request: ComposeVideoRequest
     let outputURL: URL
+    var lastProgressEmit: CFAbsoluteTime = 0
     init(request: ComposeVideoRequest, outputURL: URL) {
       self.request = request
       self.outputURL = outputURL
@@ -65,8 +66,10 @@ final class VideoWatermarkProcessor {
       do {
         try self.process(plugin: plugin, state: state, callbacks: callbacks, taskId: taskId, onComplete: onComplete, onError: onError)
       } catch let err {
-        callbacks.onVideoError(taskId: taskId, code: "compose_failed", message: err.localizedDescription) { _ in }
-        onError("compose_failed", err.localizedDescription)
+        Self.invokeOnPlatformThread {
+          callbacks.onVideoError(taskId: taskId, code: "compose_failed", message: err.localizedDescription) { _ in }
+          onError("compose_failed", err.localizedDescription)
+        }
         self.tasks[taskId] = nil
       }
     }
@@ -178,57 +181,72 @@ final class VideoWatermarkProcessor {
       animatedOverlay = nil
     }
 
-    // Processing loop
+    // Processing loop. `copyNextSampleBuffer()` returning nil is end-of-stream
+    // for that track — `reader.status` often stays `.reading` (especially when
+    // an audio track is still attached), which used to spin forever at ~95%.
     var lastPTS = CMTime.zero
     var lastTimeSec: Double = -1.0
     var frameIndex: Int64 = 0
+    var videoDone = false
+    var audioDone = audioInput == nil
     let fallbackFps = max(1.0, Double(videoTrack.nominalFrameRate > 0 ? videoTrack.nominalFrameRate : 30.0))
-    while reader.status == .reading && !state.cancelled {
+    while !state.cancelled && reader.status == .reading && !(videoDone && audioDone) {
       autoreleasepool {
-        if videoInput.isReadyForMoreMediaData, let sample = videoReaderOutput.copyNextSampleBuffer() {
-          let pts = Self.sampleTime(sample, fallbackFps: fallbackFps, frameIndex: frameIndex, lastTimeSeconds: lastTimeSec)
-          lastPTS = pts
-          let ptsSec = CMTimeGetSeconds(pts)
-          if ptsSec.isFinite {
-            lastTimeSec = ptsSec
-          }
-          guard let pool = adaptor.pixelBufferPool else { return }
-          var pb: CVPixelBuffer? = nil
-          CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &pb)
-          guard let dst = pb else { return }
-
-          // Create base CIImage from sample
-          if let srcPB = CMSampleBufferGetImageBuffer(sample) {
-            let base = CIImage(cvPixelBuffer: srcPB)
-            let output: CIImage
-            let overlay = animatedOverlay?.image(at: CMTimeGetSeconds(pts)) ?? staticOverlay
-            if let overlay = overlay {
-              // Source-over
-              let filter = CIFilter(name: "CISourceOverCompositing")!
-              filter.setValue(overlay, forKey: kCIInputImageKey)
-              filter.setValue(base, forKey: kCIInputBackgroundImageKey)
-              output = filter.outputImage ?? base
-            } else {
-              output = base
+        var didWork = false
+        if !videoDone, videoInput.isReadyForMoreMediaData {
+          didWork = true
+          if let sample = videoReaderOutput.copyNextSampleBuffer() {
+            let pts = Self.sampleTime(sample, fallbackFps: fallbackFps, frameIndex: frameIndex, lastTimeSeconds: lastTimeSec)
+            lastPTS = pts
+            let ptsSec = CMTimeGetSeconds(pts)
+            if ptsSec.isFinite {
+              lastTimeSec = ptsSec
             }
-            ciContext.render(output, to: dst, bounds: CGRect(x: 0, y: 0, width: display.width, height: display.height), colorSpace: CGColorSpace(name: CGColorSpace.sRGB))
-            _ = adaptor.append(dst, withPresentationTime: pts)
-          }
+            if let pool = adaptor.pixelBufferPool {
+              var pb: CVPixelBuffer? = nil
+              CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &pb)
+              if let dst = pb, let srcPB = CMSampleBufferGetImageBuffer(sample) {
+                let base = CIImage(cvPixelBuffer: srcPB)
+                let output: CIImage
+                let overlay = animatedOverlay?.image(at: CMTimeGetSeconds(pts)) ?? staticOverlay
+                if let overlay = overlay {
+                  let filter = CIFilter(name: "CISourceOverCompositing")!
+                  filter.setValue(overlay, forKey: kCIInputImageKey)
+                  filter.setValue(base, forKey: kCIInputBackgroundImageKey)
+                  output = filter.outputImage ?? base
+                } else {
+                  output = base
+                }
+                ciContext.render(output, to: dst, bounds: CGRect(x: 0, y: 0, width: display.width, height: display.height), colorSpace: CGColorSpace(name: CGColorSpace.sRGB))
+                _ = adaptor.append(dst, withPresentationTime: pts)
+              }
+            }
 
-          // Progress
-          let p = max(0.0, min(1.0, CMTimeGetSeconds(pts) / max(0.001, duration)))
-          callbacks.onVideoProgress(taskId: taskId, progress: p, etaSec: max(0.0, duration - CMTimeGetSeconds(pts))) { _ in }
-          frameIndex += 1
-        } else {
-          // Back off a little
-          usleep(2000)
+            let now = CFAbsoluteTimeGetCurrent()
+            if now - state.lastProgressEmit >= 0.25 {
+              state.lastProgressEmit = now
+              let p = max(0.0, min(1.0, CMTimeGetSeconds(pts) / max(0.001, duration)))
+              Self.invokeOnPlatformThread {
+                callbacks.onVideoProgress(taskId: taskId, progress: p, etaSec: max(0.0, duration - CMTimeGetSeconds(pts))) { _ in }
+              }
+            }
+            frameIndex += 1
+          } else {
+            videoDone = true
+          }
         }
 
-        // Pump audio opportunistically
-        if let aout = audioReaderOutput, let ain = audioInput, ain.isReadyForMoreMediaData {
+        if !audioDone, let aout = audioReaderOutput, let ain = audioInput, ain.isReadyForMoreMediaData {
+          didWork = true
           if let asample = aout.copyNextSampleBuffer() {
             ain.append(asample)
+          } else {
+            audioDone = true
           }
+        }
+
+        if !didWork {
+          usleep(2000)
         }
       }
     }
@@ -239,17 +257,26 @@ final class VideoWatermarkProcessor {
       audioInput?.markAsFinished()
       writer.cancelWriting()
       try? FileManager.default.removeItem(at: state.outputURL)
-      callbacks.onVideoError(taskId: taskId, code: "cancelled", message: "Cancelled") { _ in }
-      onError("cancelled", "Cancelled")
+      Self.invokeOnPlatformThread {
+        callbacks.onVideoError(taskId: taskId, code: "cancelled", message: "Cancelled") { _ in }
+        onError("cancelled", "Cancelled")
+      }
       tasks[taskId] = nil
       return
     }
 
-    // Drain remaining audio
-    if let aout = audioReaderOutput, let ain = audioInput {
+    // Drain remaining audio (cap the wait so a stalled writer cannot hang)
+    if let aout = audioReaderOutput, let ain = audioInput, !audioDone {
+      var audioWaitSpins = 0
       while reader.status == .reading || reader.status == .completed {
+        if !ain.isReadyForMoreMediaData {
+          audioWaitSpins += 1
+          if audioWaitSpins > 2500 { break } // ~5s
+          usleep(2000)
+          continue
+        }
+        audioWaitSpins = 0
         if let asample = aout.copyNextSampleBuffer() {
-          while !ain.isReadyForMoreMediaData { usleep(2000) }
           ain.append(asample)
         } else { break }
       }
@@ -267,12 +294,16 @@ final class VideoWatermarkProcessor {
                                      height: Int64(display.height),
                                      durationMs: Int64(duration * 1000.0),
                                      codec: request.codec)
-        callbacks.onVideoCompleted(result: res) { _ in }
-        onComplete(res)
+        Self.invokeOnPlatformThread {
+          callbacks.onVideoCompleted(result: res) { _ in }
+          onComplete(res)
+        }
       } else {
         let msg = writer.error?.localizedDescription ?? "Unknown writer error"
-        callbacks.onVideoError(taskId: taskId, code: "encode_failed", message: msg) { _ in }
-        onError("encode_failed", msg)
+        Self.invokeOnPlatformThread {
+          callbacks.onVideoError(taskId: taskId, code: "encode_failed", message: msg) { _ in }
+          onError("encode_failed", msg)
+        }
       }
       self.tasks[taskId] = nil
     }
@@ -455,6 +486,15 @@ final class VideoWatermarkProcessor {
       return CGPoint(x: base.midX - w * 0.5, y: base.midY - h * 0.5)
     default: // bottomRight
       return CGPoint(x: base.maxX - marginX - w, y: base.minY + marginY)
+    }
+  }
+
+  /// Dispatches Pigeon callbacks on the main queue (Flutter platform thread).
+  private static func invokeOnPlatformThread(_ work: @escaping () -> Void) {
+    if Thread.isMainThread {
+      work()
+    } else {
+      DispatchQueue.main.async(execute: work)
     }
   }
 }
