@@ -9,6 +9,8 @@ Lightweight, fast watermarking plugin for Flutter (iOS + Android). Compose image
 
 ## Install
 
+Requires **Flutter 3.41+** on iOS when using Swift Package Manager (default on Flutter 3.44+). CocoaPods remains supported as a fallback.
+
 In your app's `pubspec.yaml`:
 
 ```
