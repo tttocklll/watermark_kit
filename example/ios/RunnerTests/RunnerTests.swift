@@ -3,7 +3,7 @@ import UIKit
 import XCTest
 
 
-@testable import watermark_kit
+@testable import flutter_watermark_kit
 
 // This demonstrates a simple unit test of the Swift portion of this plugin's implementation.
 //

@@ -8,7 +8,7 @@ import 'package:pigeon/pigeon.dart';
     dartPackageName: 'watermark_kit',
     dartOut: 'lib/gen/messages.g.dart',
     dartOptions: DartOptions(),
-    swiftOut: 'ios/Classes/Messages.g.swift',
+    swiftOut: 'ios/flutter_watermark_kit/Sources/flutter_watermark_kit/Messages.g.swift',
     swiftOptions: SwiftOptions(),
     kotlinOut: 'android/src/main/kotlin/com/tttocklll/watermark_kit/Messages.g.kt',
     kotlinOptions: KotlinOptions(
